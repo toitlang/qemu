@@ -127,6 +127,12 @@ softmmu_ss.add(when: 'CONFIG_XTENSA_ESP32', if_true: files(
   'esp32_rng.c',
 ))
 
+if gcrypt.found()
+  softmmu_ss.add(when: [gcrypt, 'CONFIG_XTENSA_ESP32'], if_true: files(
+    'esp32_rsa.c',
+  ))
+endif
+
 softmmu_ss.add(when: 'CONFIG_GRLIB', if_true: files('grlib_ahb_apb_pnp.c'))
 
 specific_ss.add(when: 'CONFIG_AVR_POWER', if_true: files('avr_power.c'))
