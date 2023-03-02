@@ -99,13 +99,13 @@ jobs:
       - name: Install
         shell: bash
         run: |
-          mkdir -p root/qemu-${{ matrix.container }}
-          make -C build install DESTDIR=$(pwd)/root
+          mkdir -p qemu-${{ matrix.container }}
+          make -C build install DESTDIR=$(pwd)/qemu-${{ matrix.container }}
 
       - name: Create archive
         shell: bash
         run: |
-          tar -czf qemu-${{ matrix.container }}.tar.gz -C root qemu-${{ matrix.container }}
+          tar -czf qemu-${{ matrix.container }}.tar.gz qemu-${{ matrix.container }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
