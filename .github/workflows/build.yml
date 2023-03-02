@@ -1,0 +1,113 @@
+name: Build
+
+on:
+  push:
+
+jobs:
+  build:
+    name: Build QEMU
+    strategy:
+      # The matrix will run all possible combinations in parallel.
+      matrix:
+        # ubuntu-20.04 so that we don't depend on a recent glibc.
+        container: [ ubuntu-20.04, macos-latest ]
+
+    runs-on: ${{ matrix.container }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Ccache cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-ccache-
+
+      # Fetch the dependencies. Different for each platform.
+      - name: Install dependencies - Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -q ninja-build libgcrypt20 libgcrypt20-dev ccache
+          ninja --version
+      - name: Install dependencies - macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja ccache
+          ninja --version
+      - name: Install dependencies - Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install ninja ccache
+          ninja --version
+
+      - name: Ccache zero stats
+        shell: bash
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
+        run: |
+          ccache -s
+          ccache -z
+
+      - name: Configure
+        env:
+          CC: ccache cc
+          CXX: ccache c++
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
+        shell: bash
+        run: |
+          ./configure \
+              --target-list=xtensa-softmmu \
+              --disable-capstone \
+              --disable-vnc \
+              --enable-gcrypt \
+              --disable-curl
+
+      - name: Build
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
+        shell: bash
+        run: |
+          make -j$(nproc)
+
+      - name: Ccache stats
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
+        shell: bash
+        run: |
+          ccache -s
+
+      - name: Install
+        shell: bash
+        run: |
+          mkdir -p root/qemu-${{ matrix.container }}
+          make -C build install DESTDIR=$(pwd)/root
+
+      - name: Create archive
+        shell: bash
+        run: |
+          tar -czf qemu-${{ matrix.container }}.tar.gz -C root qemu-${{ matrix.container }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: qemu-${{ matrix.container }}
+          path: |
+            qemu-${{ matrix.container }}.tar.gz
