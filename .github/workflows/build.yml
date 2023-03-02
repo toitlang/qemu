@@ -2,6 +2,8 @@ name: Build
 
 on:
   push:
+  release:
+    types: [published]
 
 jobs:
   build:
@@ -111,3 +113,14 @@ jobs:
           name: qemu-${{ matrix.container }}
           path: |
             qemu-${{ matrix.container }}.tar.gz
+
+      - name: Upload release artifacts
+        if: |
+          github.event_name == 'release' &&
+          github.repository_owner == 'toitlang'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: qemu-${{ matrix.container }}.tar.gz
+          tag: ${{ github.ref }}
+          overwrite: true
