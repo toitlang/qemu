@@ -12,9 +12,17 @@ jobs:
       # The matrix will run all possible combinations in parallel.
       matrix:
         # ubuntu-20.04 so that we don't depend on a recent glibc.
-        container: [ ubuntu-20.04, macos-latest ]
+        container: [
+          { os: ubuntu-20.04, shell: bash },
+          { os: macos-latest, shell: bash },
+          { os: windows-latest, shell: 'msys2 {0}' }
+        ]
 
-    runs-on: ${{ matrix.container }}
+    runs-on: ${{ matrix.container.os }}
+
+    defaults:
+      run:
+        shell: ${{ matrix.container.shell }}
 
     steps:
       - uses: actions/checkout@v3
@@ -40,34 +48,49 @@ jobs:
           ninja --version
       - name: Install dependencies - Windows
         if: runner.os == 'Windows'
+        uses : msys2/setup-msys2@v2
+        with:
+          update: true
+          install: |
+            base-devel
+            mingw-w64-x86_64-toolchain
+            git
+            python
+            ninja
+            mingw-w64-x86_64-glib2
+            mingw-w64-x86_64-pixman
+            python-setuptools
+            mingw-w64-x86_64-libslirp
+            mingw-w64-x86_64-libgcrypt
+            mingw-w64-x86_64-ccache
+
+      - name: Set workspace path
+        working-directory: ${{ github.workspace }}
         run: |
-          choco install ninja ccache
-          ninja --version
+          echo "WORKSPACE=$(pwd)" >> $GITHUB_ENV
 
       - name: Ccache zero stats
-        shell: bash
         env:
-          CCACHE_DIR: ${{ github.workspace }}/.ccache
-          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
           CCACHE_COMPRESS: true
           CCACHE_COMPRESSLEVEL: '6'
           CCACHE_MAXSIZE: 400M
         run: |
-          ccache -s
           ccache -z
 
       - name: Configure
         env:
-          CC: ccache cc
-          CXX: ccache c++
-          CCACHE_DIR: ${{ github.workspace }}/.ccache
-          CCACHE_BASEDIR: ${{ github.workspace }}
+          CC: ccache gcc
+          CXX: ccache g++
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
           CCACHE_COMPRESS: true
           CCACHE_COMPRESSLEVEL: '6'
           CCACHE_MAXSIZE: 400M
-        shell: bash
         run: |
           ./configure \
+              --prefix=/ \
               --target-list=xtensa-softmmu \
               --disable-capstone \
               --disable-vnc \
@@ -76,31 +99,41 @@ jobs:
 
       - name: Build
         env:
-          CCACHE_DIR: ${{ github.workspace }}/.ccache
-          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
           CCACHE_COMPRESS: true
           CCACHE_COMPRESSLEVEL: '6'
           CCACHE_MAXSIZE: 400M
-        shell: bash
         run: |
           make -j$(nproc)
 
       - name: Ccache stats
         env:
-          CCACHE_DIR: ${{ github.workspace }}/.ccache
-          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
           CCACHE_COMPRESS: true
           CCACHE_COMPRESSLEVEL: '6'
           CCACHE_MAXSIZE: 400M
-        shell: bash
         run: |
           ccache -s
 
       - name: Install
-        shell: bash
         run: |
           mkdir -p qemu-${{ matrix.container }}
           make -C build install DESTDIR=$(pwd)/qemu-${{ matrix.container }}
+
+      - name: Move archive files - Windows
+        # The installation prefixes the actual path with the path of the msys2
+        # directory.
+        # For simplicity find the path of the executable and use its dirname, then
+        # replace the original installation directory with the new one.
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          INSTALL_DIR=${{ env.WORKSPACE }}/qemu-${{ matrix.container }}
+          mv $INSTALL_DIR $INSTALL_DIR.tmp
+          qemu_path=$(dirname $(find $INSTALL_DIR.tmp -name qemu-system-xtensa.exe))
+          mv $qemu_path $INSTALL_DIR
 
       - name: Create archive
         shell: bash
