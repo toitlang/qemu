@@ -95,7 +95,8 @@ jobs:
               --disable-capstone \
               --disable-vnc \
               --enable-gcrypt \
-              --disable-curl
+              --disable-curl \
+              --disable-qga-vss
 
       - name: Build
         env:
