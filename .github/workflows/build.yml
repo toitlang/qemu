@@ -120,8 +120,8 @@ jobs:
 
       - name: Install
         run: |
-          mkdir -p qemu-${{ matrix.container }}
-          make -C build install DESTDIR=$(pwd)/qemu-${{ matrix.container }}
+          mkdir -p qemu-${{ runner.os }}
+          make -C build install DESTDIR=$(pwd)/qemu-${{ runner.os }}
 
       - name: Move archive files - Windows
         # The installation prefixes the actual path with the path of the msys2
@@ -131,7 +131,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          INSTALL_DIR=${{ env.WORKSPACE }}/qemu-${{ matrix.container }}
+          INSTALL_DIR=${{ env.WORKSPACE }}/qemu-${{ runner.os }}
           mv $INSTALL_DIR $INSTALL_DIR.tmp
           qemu_path=$(dirname $(find $INSTALL_DIR.tmp -name qemu-system-xtensa.exe))
           mv $qemu_path $INSTALL_DIR
@@ -139,14 +139,14 @@ jobs:
       - name: Create archive
         shell: bash
         run: |
-          tar -czf qemu-${{ matrix.container }}.tar.gz qemu-${{ matrix.container }}
+          tar -czf qemu-${{ runner.os }}.tar.gz qemu-${{ runner.os }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: qemu-${{ matrix.container }}
+          name: qemu-${{ runner.os }}
           path: |
-            qemu-${{ matrix.container }}.tar.gz
+            qemu-${{ runner.os }}.tar.gz
 
       - name: Upload release artifacts
         if: |
@@ -155,6 +155,6 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: qemu-${{ matrix.container }}.tar.gz
+          file: qemu-${{ runner.os }}.tar.gz
           tag: ${{ github.ref }}
           overwrite: true
