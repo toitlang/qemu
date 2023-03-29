@@ -120,8 +120,8 @@ jobs:
 
       - name: Install
         run: |
-          mkdir -p qemu-${{ runner.os }}
-          make -C build install DESTDIR=$(pwd)/qemu-${{ runner.os }}
+          mkdir -p qemu-${{ runner.os }}-tmp
+          make -C build install DESTDIR=$(pwd)/qemu-${{ runner.os }}-tmp
 
       - name: Move archive files - Windows
         # The installation prefixes the actual path with the path of the msys2
@@ -131,14 +131,29 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          INSTALL_DIR=${{ env.WORKSPACE }}/qemu-${{ runner.os }}
+          INSTALL_DIR=${{ env.WORKSPACE }}/qemu-${{ runner.os }}-tmp
           mv $INSTALL_DIR $INSTALL_DIR.tmp
           qemu_path=$(dirname $(find $INSTALL_DIR.tmp -name qemu-system-xtensa.exe))
           mv $qemu_path $INSTALL_DIR
 
-      - name: Create archive
+      - name: Create archive - Linux/macOS
+        if: runner.os != 'Windows'
         shell: bash
         run: |
+          find qemu-${{ runner.os }}-tmp
+          mkdir qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/bin/qemu-system-xtensa qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/share/qemu/esp32* qemu-${{ runner.os }}
+          tar -czf qemu-${{ runner.os }}.tar.gz qemu-${{ runner.os }}
+
+      - name: Create archive - Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          find qemu-${{ runner.os }}-tmp
+          mkdir qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/qemu-system-xtensa.exe qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/share/esp32* qemu-${{ runner.os }}
           tar -czf qemu-${{ runner.os }}.tar.gz qemu-${{ runner.os }}
 
       - name: Upload build artifacts
