@@ -45,6 +45,7 @@ access_point_info access_points[]={
     {"Home Wifi",7,-70},
     {"My Wifi",8,-75},
     {"New Wifi",10,-90},
+    {"jaguar", 10,-90},
 };
 
 int nb_aps=sizeof(access_points)/sizeof(access_point_info);

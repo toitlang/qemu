@@ -185,6 +185,9 @@ static void esp32_soc_reset(DeviceState *dev)
         if (s->eth) {
             device_cold_reset(s->eth);
         }
+        if (s->wifi_dev) {
+            device_cold_reset(s->wifi_dev);
+        }
     }
     if (s->requested_reset & ESP32_SOC_RESET_PROCPU) {
         xtensa_select_static_vectors(&s->cpu[0].env, s->rtc_cntl.stat_vector_sel[0]);
@@ -478,6 +481,18 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->efuse), 0,
                        qdev_get_gpio_in(intmatrix_dev, ETS_EFUSE_INTR_SOURCE));
 
+    // qdev_realize(DEVICE(&s->sens), &s->periph_bus, &error_fatal);
+    // esp32_soc_add_periph_device(sys_mem, &s->sens, DR_REG_SENS_BASE);
+
+    qdev_realize(DEVICE(&s->ana), &s->periph_bus, &error_fatal);
+    esp32_soc_add_periph_device(sys_mem, &s->ana, DR_REG_ANA_BASE);
+
+    qdev_realize(DEVICE(&s->fe), &s->periph_bus, &error_fatal);
+    esp32_soc_add_periph_device(sys_mem, &s->fe, DR_REG_FE_BASE);
+
+    // qdev_realize(DEVICE(&s->phya), &s->periph_bus, &error_fatal);
+    // esp32_soc_add_periph_device(sys_mem, &s->phya, DR_REG_PHYA_BASE);
+
     qdev_realize(DEVICE(&s->flash_enc), &s->periph_bus, &error_abort);
     esp32_soc_add_periph_device(sys_mem, &s->flash_enc, DR_REG_SPI_ENCRYPT_BASE);
 
@@ -495,7 +510,7 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
 
     esp32_soc_add_unimp_device(sys_mem, "esp32.analog", DR_REG_ANA_BASE, 0x1000);
     esp32_soc_add_unimp_device(sys_mem, "esp32.rtcio", DR_REG_RTCIO_BASE, 0x400);
-    esp32_soc_add_unimp_device(sys_mem, "esp32.rtcio", DR_REG_SENS_BASE, 0x400);
+//     esp32_soc_add_unimp_device(sys_mem, "esp32.rtcio", DR_REG_SENS_BASE, 0x400);
     esp32_soc_add_unimp_device(sys_mem, "esp32.iomux", DR_REG_IO_MUX_BASE, 0x2000);
     esp32_soc_add_unimp_device(sys_mem, "esp32.hinf", DR_REG_HINF_BASE, 0x1000);
     esp32_soc_add_unimp_device(sys_mem, "esp32.slc", DR_REG_SLC_BASE, 0x1000);
@@ -505,6 +520,11 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
     esp32_soc_add_unimp_device(sys_mem, "esp32.i2s1", DR_REG_I2S1_BASE, 0x1000);
     esp32_soc_add_unimp_device(sys_mem, "esp32.rmt", DR_REG_RMT_BASE, 0x1000);
     esp32_soc_add_unimp_device(sys_mem, "esp32.pcnt", DR_REG_PCNT_BASE, 0x1000);
+    esp32_soc_add_unimp_device(sys_mem, "esp32.fe2", DR_REG_FE2_BASE, 0x1000);
+    esp32_soc_add_unimp_device(sys_mem, "esp32.chipv7_phy", DR_REG_PHY_BASE, 0x1000);
+    esp32_soc_add_unimp_device(sys_mem, "esp32.chipv7_phyb", DR_REG_WDEV_BASE, 0x1000);
+    esp32_soc_add_unimp_device(sys_mem, "esp32.unknown_wifi", DR_REG_NRX_BASE, 0x1000);
+    esp32_soc_add_unimp_device(sys_mem, "esp32.unknown_wifi1", DR_REG_BB_BASE, 0x1000);
 
     /* Emulation of APB_CTRL_DATE_REG, needed for ECO3 revision detection.
      * This is a small hack to avoid creating a whole new device just to emulate one
@@ -602,6 +622,14 @@ static void esp32_soc_init(Object *obj)
     object_initialize_child(obj, "ledc", &s->ledc, TYPE_ESP32_LEDC);
 
     object_initialize_child(obj, "rsa", &s->rsa, TYPE_ESP32_RSA);
+
+//    object_initialize_child(obj, "sens", &s->sens, TYPE_ESP32_SENS);
+
+    object_initialize_child(obj, "ana", &s->ana, TYPE_ESP32_ANA);
+
+    object_initialize_child(obj, "fe", &s->fe, TYPE_ESP32_FE);
+
+    // object_initialize_child(obj, "phya", &s->phya, TYPE_ESP32_PHYA);
 
     object_initialize_child(obj, "efuse", &s->efuse, TYPE_ESP32_EFUSE);
 

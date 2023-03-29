@@ -22,6 +22,10 @@
 #include "hw/xtensa/esp32_intc.h"
 #include "hw/misc/esp32_flash_enc.h"
 #include "hw/sd/dwc_sdmmc.h"
+// #include "hw/misc/esp32_sens.h"
+#include "hw/misc/esp32_ana.h"
+#include "hw/misc/esp32_wifi.h"
+#include "hw/misc/esp32_fe.h"
 
 typedef struct Esp32SocState {
     /*< private >*/
@@ -45,9 +49,14 @@ typedef struct Esp32SocState {
     Esp32RsaState rsa;
     Esp32LEDCState ledc;
     Esp32EfuseState efuse;
+    Esp32AnaState ana;
+    Esp32WifiState wifi;
+    Esp32FeState fe;
+    // Esp32RamdevState phya;
     Esp32FlashEncryptionState flash_enc;
     DWCSDMMCState sdmmc;
     DeviceState *eth;
+    DeviceState *wifi_dev;
 
     BusState rtc_bus;
     BusState periph_bus;
