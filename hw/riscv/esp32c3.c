@@ -41,6 +41,7 @@
 #include "hw/misc/esp32c3_rtc_cntl.h"
 #include "hw/misc/esp32c3_aes.h"
 #include "hw/misc/esp32c3_rsa.h"
+#include "hw/misc/esp32c3_hmac.h"
 #include "hw/misc/esp32c3_jtag.h"
 #include "hw/dma/esp32c3_gdma.h"
 
@@ -72,6 +73,7 @@ struct Esp32C3MachineState {
     ESP32C3AesState aes;
     ESP32C3ShaState sha;
     ESP32C3RsaState rsa;
+    ESP32C3HmacState hmac;
     ESP32C3TimgState timg[2];
     ESP32C3SysTimerState systimer;
     ESP32C3SpiState spi1;
@@ -179,6 +181,7 @@ static void esp32c3_cpu_reset(void* opaque, int n, int level)
         device_cold_reset(DEVICE(&s->aes));
         device_cold_reset(DEVICE(&s->sha));
         device_cold_reset(DEVICE(&s->rsa));
+        device_cold_reset(DEVICE(&s->hmac));
         device_cold_reset(DEVICE(&s->systimer));
         device_cold_reset(DEVICE(&s->spi1));
         device_cold_reset(DEVICE(&s->rtccntl));
@@ -321,6 +324,7 @@ static void esp32c3_machine_init(MachineState *machine)
     object_initialize_child(OBJECT(machine), "aes", &ms->aes, TYPE_ESP32C3_AES);
     object_initialize_child(OBJECT(machine), "gdma", &ms->gdma, TYPE_ESP32C3_GDMA);
     object_initialize_child(OBJECT(machine), "rsa", &ms->rsa, TYPE_ESP32C3_RSA);
+    object_initialize_child(OBJECT(machine), "hmac", &ms->hmac, TYPE_ESP32C3_HMAC);
     object_initialize_child(OBJECT(machine), "timg0", &ms->timg[0], TYPE_ESP32C3_TIMG);
     object_initialize_child(OBJECT(machine), "timg1", &ms->timg[1], TYPE_ESP32C3_TIMG);
     object_initialize_child(OBJECT(machine), "systimer", &ms->systimer, TYPE_ESP32C3_SYSTIMER);
@@ -421,6 +425,14 @@ static void esp32c3_machine_init(MachineState *machine)
             sysbus_connect_irq(SYS_BUS_DEVICE(&ms->clock), i,
                            qdev_get_gpio_in(intmatrix_dev, ETS_FROM_CPU_INTR0_SOURCE + i));
         }
+    }
+
+    /* HMAC realization */
+    {
+        ms->hmac.efuse = &ms->efuse;
+        qdev_realize(DEVICE(&ms->hmac), &ms->periph_bus, &error_fatal);
+        MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ms->hmac), 0);
+        memory_region_add_subregion_overlap(sys_mem, DR_REG_HMAC_BASE, mr, 0);
     }
 
     /* Timer Groups realization */
