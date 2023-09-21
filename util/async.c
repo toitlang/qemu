@@ -164,7 +164,12 @@ int aio_bh_poll(AioContext *ctx)
 
     /* Synchronizes with QSLIST_INSERT_HEAD_ATOMIC in aio_bh_enqueue().  */
     QSLIST_MOVE_ATOMIC(&slice.bh_list, &ctx->bh_list);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wpragmas"
+#pragma GCC diagnostic warning "-Wunknown-pragmas"
+#pragma GCC diagnostic warning "-Wdangling-pointer"
     QSIMPLEQ_INSERT_TAIL(&ctx->bh_slice_list, &slice, next);
+#pragma GCC diagnostic pop
 
     while ((s = QSIMPLEQ_FIRST(&ctx->bh_slice_list))) {
         QEMUBH *bh;
