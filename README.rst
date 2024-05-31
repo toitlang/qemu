@@ -1,3 +1,9 @@
+Note - Toitlang
+
+Starting with release esp-develop-8.1.3-20231206, the github.com/espressif/qemu
+repository provides binaries for Linux, macOS, and Windows. This repository is
+thus not needed anymore and is archived.
+
 ===========
 QEMU README
 ===========
