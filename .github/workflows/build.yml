@@ -1,225 +1,175 @@
-name: 'build'
+name: Build
 
-on: [push, pull_request]
+on:
+  push:
+  release:
+    types: [published]
 
 jobs:
-
-  Vars:
-    runs-on: ubuntu-latest
-    outputs:
-      VERSION: ${{ steps.Vars.outputs.VERSION }}
-      PROJECT_NAME: ${{ steps.Vars.outputs.PROJECT_NAME }}
-      REPOSITORY_URL: ${{ steps.Vars.outputs.REPOSITORY_URL }}
-    steps:
-      - id: Vars
-        run: |
-          echo "ref_type: ${{ github.ref_type }}"
-          echo "ref: ${{ github.ref }}"
-          echo "sha: ${{ github.sha }}"
-          echo ""
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION=${{ github.ref }}
-            VERSION=${VERSION#"refs/tags/"}
-            VERSION=${VERSION//"-"/"_"}   # replace dashes with underscores in the version
-          else
-            VERSION=${{ github.sha }}
-            VERSION=g${VERSION:0:8}
-          fi
-          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-          echo $VERSION
-
-          OWNER=${{ github.repository_owner }}
-          FULLNAME=${{ github.repository }}
-          PROJECT_NAME=${FULLNAME#"$OWNER/"}
-          echo "PROJECT_NAME=$PROJECT_NAME" >> "$GITHUB_OUTPUT"
-          echo $PROJECT_NAME
-
-          REPOSITORY_URL=${{ github.server_url }}/${{ github.repository }}
-          echo "REPOSITORY_URL=$REPOSITORY_URL" >> "$GITHUB_OUTPUT"
-          echo $REPOSITORY_URL
-
-  Build:
-    needs: [ Vars ]
-    env:
-      # A simple way to spread several environments for Windows. But to be more precise, we need to somehow add different envs to matrix.include
-
-      MSYSTEM: MINGW64  # Ref: https://www.msys2.org/docs/environments/
-      CHERE_INVOKING: 'yes'
-      MSYS: 'winsymlinks:native'
+  build:
+    name: Build QEMU
     strategy:
-      fail-fast: false
+      # The matrix will run all possible combinations in parallel.
       matrix:
-        # Naming MinGW platforms: https://sourceforge.net/p/mingw-w64/wiki2/TypeTriplets/
-        platform: [x86_64-linux-gnu, aarch64-linux-gnu, x86_64-w64-mingw32, x86_64-apple-darwin, aarch64-apple-darwin]
-        target: [xtensa-softmmu, riscv32-softmmu]
+        # ubuntu-20.04 so that we don't depend on a recent glibc.
+        container: [
+          { os: ubuntu-20.04, shell: bash },
+          { os: macos-latest, shell: bash },
+          { os: windows-latest, shell: 'msys2 {0}' }
+        ]
 
-        include:
-          - platform: x86_64-linux-gnu
-            runs_on: ubuntu-20.04
-            # Used minimal build deps
-            container: ubuntu:18.04
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-old.sh"
-            run_configure: "./.github/workflows/scripts/configure-native.sh"
+    runs-on: ${{ matrix.container.os }}
 
-          - platform: aarch64-linux-gnu
-            runs_on: ubuntu-20.04
-            # Used the minimal docker-hub's image instead of the heavy GitHub's one for correct croossbuild prerequisites
-            container: ubuntu:20.04
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-cross-linux-arm64.sh"
-            run_configure: "./.github/workflows/scripts/configure-cross-linux-arm64.sh"
-
-          - platform: x86_64-w64-mingw32
-            runs_on: windows-2022
-            shell: msys2 {0}
-            run_configure: "./.github/workflows/scripts/configure-win.sh"
-
-          - platform: x86_64-apple-darwin
-            runs_on: macos-12
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
-            run_configure: "./.github/workflows/scripts/configure-macos.sh"
-
-          - platform: aarch64-apple-darwin
-            runs_on: macos-13-xlarge
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
-            run_configure: "./.github/workflows/scripts/configure-macos.sh"
-
-    runs-on: ${{ matrix.runs_on }}
-    container: ${{ matrix.container }}
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: ${{ matrix.container.shell }}
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install prerequisites (${{ matrix.target }} @ ${{ matrix.platform }})
-        if : ${{ matrix.platform != 'x86_64-w64-mingw32' }}
-        run: |
-          ${{ matrix.run_prerequisites }}
-
-      - name: Install MSYS2 prerequisites (${{ matrix.target }} @ ${{ matrix.platform }})
-        if : ${{ matrix.platform == 'x86_64-w64-mingw32' }}
-        uses: msys2/setup-msys2@v2
+      - name: Ccache cache
+        uses: actions/cache@v3
         with:
-          cache: true
-          msystem: MINGW64
-          install: >-
-            diffutils
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-ccache-
+
+      # Fetch the dependencies. Different for each platform.
+      - name: Install dependencies - Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -q ninja-build libgcrypt20 libgcrypt20-dev ccache libslirp0 libslirp-dev
+          ninja --version
+      - name: Install dependencies - macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja ccache
+          ninja --version
+      - name: Install dependencies - Windows
+        if: runner.os == 'Windows'
+        uses : msys2/setup-msys2@v2
+        with:
+          update: true
+          install: |
+            base-devel
+            mingw-w64-x86_64-toolchain
             git
-            mingw-w64-x86_64-gcc
+            python
+            ninja
             mingw-w64-x86_64-glib2
-            mingw-w64-x86_64-libgcrypt
-            mingw-w64-x86_64-libiconv
-            mingw-w64-x86_64-libslirp
-            mingw-w64-x86_64-ninja
             mingw-w64-x86_64-pixman
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-python
-            mingw-w64-x86_64-SDL2
+            python-setuptools
+            mingw-w64-x86_64-libslirp
+            mingw-w64-x86_64-libgcrypt
+            mingw-w64-x86_64-ccache
 
-      - name: Configure (${{ matrix.target }} @ ${{ matrix.platform }})
+      - name: Set workspace path
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "WORKSPACE=$(pwd)" >> $GITHUB_ENV
+
+      - name: Ccache zero stats
         env:
-          VERSION: ${{ needs.Vars.outputs.VERSION }}
-          TARGET: ${{ matrix.target }}
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
         run: |
-          ${{ matrix.run_configure }}
+          ccache -z
 
-      - name: Build (${{ matrix.target }} @ ${{ matrix.platform }})
-        run: |
-          ninja -C build install
-
-      - name: Package (${{ matrix.target }} @ ${{ matrix.platform }})
+      - name: Configure
         env:
-          VERSION: ${{ needs.Vars.outputs.VERSION }}
-          PROJECT_NAME: ${{ needs.Vars.outputs.PROJECT_NAME }}
-          PLATFORM: ${{ matrix.platform }}
-          TARGET: ${{ matrix.target }}
+          CC: ccache gcc
+          CXX: ccache g++
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
         run: |
-          find $PWD/install/qemu/share/qemu/ -maxdepth 1 -mindepth 1 -not -name 'esp*.bin' -exec rm -rfv {} \;
-          export DIST_DIR=${PWD}/dist
-          mkdir -p ${DIST_DIR}
-          cd $PWD/install
-          ARCHIVE_NAME=${PROJECT_NAME}-${TARGET}-${VERSION}-${PLATFORM}.tar.xz
-          tar -cJvf ${DIST_DIR}/${ARCHIVE_NAME} qemu > ${DIST_DIR}/dist-filelist-${TARGET}-${PLATFORM}.txt 2>&1
-          echo "${ARCHIVE_NAME}" > ${DIST_DIR}/file_${PLATFORM}_${TARGET}
+          ./configure \
+              --prefix=/ \
+              --target-list=xtensa-softmmu \
+              --disable-capstone \
+              --disable-vnc \
+              --enable-gcrypt \
+              --disable-curl \
+              --disable-qga-vss
 
-      - name: Dist filelist (dbg) (${{ matrix.target }} @ ${{ matrix.platform }})
+      - name: Build
+        env:
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
+        run: |
+          make -j$(nproc)
+
+      - name: Ccache stats
+        env:
+          CCACHE_DIR: ${{ env.WORKSPACE }}/.ccache
+          CCACHE_BASEDIR: ${{ env.WORKSPACE }}
+          CCACHE_COMPRESS: true
+          CCACHE_COMPRESSLEVEL: '6'
+          CCACHE_MAXSIZE: 400M
+        run: |
+          ccache -s
+
+      - name: Install
+        run: |
+          mkdir -p qemu-${{ runner.os }}-tmp
+          make -C build install DESTDIR=$(pwd)/qemu-${{ runner.os }}-tmp
+
+      - name: Move archive files - Windows
+        # The installation prefixes the actual path with the path of the msys2
+        # directory.
+        # For simplicity find the path of the executable and use its dirname, then
+        # replace the original installation directory with the new one.
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          INSTALL_DIR=${{ env.WORKSPACE }}/qemu-${{ runner.os }}-tmp
+          mv $INSTALL_DIR $INSTALL_DIR.tmp
+          qemu_path=$(dirname $(find $INSTALL_DIR.tmp -name qemu-system-xtensa.exe))
+          mv $qemu_path $INSTALL_DIR
+
+      - name: Create archive - Linux/macOS
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          find qemu-${{ runner.os }}-tmp
+          mkdir qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/bin/qemu-system-xtensa qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/share/qemu/esp32* qemu-${{ runner.os }}
+          tar -czf qemu-${{ runner.os }}.tar.gz qemu-${{ runner.os }}
+
+      - name: Create archive - Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          find qemu-${{ runner.os }}-tmp
+          mkdir qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/qemu-system-xtensa.exe qemu-${{ runner.os }}
+          cp qemu-${{ runner.os }}-tmp/share/esp32* qemu-${{ runner.os }}
+          tar -czf qemu-${{ runner.os }}.tar.gz qemu-${{ runner.os }}
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: dist-filelist-${{ matrix.target }}-${{ matrix.platform }}
+          name: qemu-${{ runner.os }}
           path: |
-            dist/dist-filelist-*
+            qemu-${{ runner.os }}.tar.gz
 
-      - name: Dist artifacts (${{ matrix.target }} @ ${{ matrix.platform }})
-        uses: actions/upload-artifact@v3
+      - name: Upload release artifacts
+        if: |
+          github.event_name == 'release' &&
+          github.repository_owner == 'toitlang'
+        uses: svenstaro/upload-release-action@v2
         with:
-          # TODO split artifacts for tests
-          name: dist-qemu
-          path: |
-            dist
-
-  Upload:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [ Vars, Build ]
-    runs-on: ubuntu-latest
-    steps :
-      - name: Create a source archive
-        id: create-source
-        env:
-          VERSION: ${{ needs.Vars.outputs.VERSION }}
-          PROJECT_NAME: ${{ needs.Vars.outputs.PROJECT_NAME }}
-          REPOSITORY_URL: ${{ needs.Vars.outputs.REPOSITORY_URL }}
-        run: |
-          export RELEASE_CHECKSUM_FILE="${PROJECT_NAME}-${VERSION}-checksum.sha256"
-          echo "RELEASE_CHECKSUM_FILE=$RELEASE_CHECKSUM_FILE" >> "$GITHUB_OUTPUT"
-          RELEASE_SRC_NAME="${PROJECT_NAME}-${VERSION}-src"
-          export RELEASE_SRC_FILE="${PROJECT_NAME}-${VERSION}-src.tar.xz"
-          echo "RELEASE_SRC_FILE=$RELEASE_SRC_FILE" >> "$GITHUB_OUTPUT"
-
-          rm -rf -- "${RELEASE_SRC_NAME}" "${RELEASE_SRC_FILE}"
-          git clone --quiet --depth 1 --recurse-submodules --shallow-submodules "${REPOSITORY_URL}" "${RELEASE_SRC_NAME}"
-          find "${RELEASE_SRC_NAME}" -name ".git" -type d -exec rm -rf -- "{}" +
-          find "${RELEASE_SRC_NAME}" -name .git\* -exec rm -rf -- {} +
-          tar -cJvf "${RELEASE_SRC_FILE}" "${RELEASE_SRC_NAME}" > src-filelist.txt 2>&1
-          rm -rf -- "${RELEASE_SRC_NAME}"
-          ls -l
-
-      - name: Source filelist (dbg)
-        uses: actions/upload-artifact@v3
-        with:
-          name: src-filelist
-          path: |
-            src-filelist.txt
-
-      - uses: actions/download-artifact@v3
-        with:
-          name: dist-qemu
-
-      - name: Create a checksum file
-        env:
-          RELEASE_CHECKSUM_FILE: ${{ steps.create-source.outputs.RELEASE_CHECKSUM_FILE }}
-          RELEASE_SRC_FILE: ${{ steps.create-source.outputs.RELEASE_SRC_FILE }}
-        run: |
-          ls -l
-          DIST_FILE_LIST=$(find . -name file_\* -exec cat {} \+)
-          DIST_FILE_LIST="${DIST_FILE_LIST} ${RELEASE_SRC_FILE}"
-          for n in $DIST_FILE_LIST; do
-            sz=$(stat -c%s "${n}")
-            printf "# %s: %s bytes\n" "${n}" "${sz}" >> "${RELEASE_CHECKSUM_FILE}"
-            sha256sum -b "${n}" >> "${RELEASE_CHECKSUM_FILE}"
-          done
-          DIST_FILE_LIST="${DIST_FILE_LIST} ${RELEASE_CHECKSUM_FILE}"
-          # remove new lines from file list
-          DIST_FILE_LIST="${DIST_FILE_LIST//$'\n'/ }"
-          cat "${RELEASE_CHECKSUM_FILE}"
-          rm -rf -- upload && mkdir -p upload && mv -v ${DIST_FILE_LIST} upload/
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          files: upload/*
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: qemu-${{ runner.os }}.tar.gz
+          tag: ${{ github.ref }}
+          overwrite: true
