@@ -184,6 +184,7 @@ static void esp32_soc_reset(DeviceState *dev)
         for (int i = 0; i < ESP32_I2C_COUNT; i++) {
             device_cold_reset(DEVICE(&s->i2c[i]));
         }
+        device_cold_reset(DEVICE(&s->twai));
         device_cold_reset(DEVICE(&s->efuse));
         if (s->eth) {
             device_cold_reset(s->eth);
@@ -477,6 +478,15 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in(intmatrix_dev, ETS_I2C_EXT0_INTR_SOURCE + i));
     }
 
+    /* TWAI model passes intmatrix IRQs to the SJA1000 controller model
+     * in realize function. That means that irq linking MUST be
+     * performed before realization of TWAI peripheral.
+     */
+    qdev_realize(DEVICE(&s->twai), &s->periph_bus, &error_fatal);
+    esp32_soc_add_periph_device(sys_mem, &s->twai, DR_REG_CAN_BASE); 
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->twai), 0,
+                       qdev_get_gpio_in(intmatrix_dev, ETS_CAN_INTR_SOURCE));
+
     qdev_realize(DEVICE(&s->rng), &s->periph_bus, &error_fatal);
     esp32_soc_add_periph_device(sys_mem, &s->rng, ESP32_RNG_BASE);
 
@@ -615,6 +625,8 @@ static void esp32_soc_init(Object *obj)
         snprintf(name, sizeof(name), "i2c%d", i);
         object_initialize_child(obj, name, &s->i2c[i], TYPE_ESP32_I2C);
     }
+
+    object_initialize_child(obj, "twai", &s->twai, TYPE_ESP32_TWAI);
 
     object_initialize_child(obj, "rng", &s->rng, TYPE_ESP32_RNG);
 
