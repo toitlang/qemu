@@ -62,6 +62,7 @@
 #include "hw/gpio/esp32s3_gpio.h"
 #include "hw/misc/esp32s3_xts_aes.h"
 #include "hw/misc/esp32s3_pms.h"
+#include "hw/net/can/esp32s3_twai.h"
 
 #include "cpu_esp32s3.h"
 
@@ -122,6 +123,7 @@ typedef struct Esp32s3SocState {
     ESP32S3UARTState uart[ESP32S3_UART_COUNT];
     ESP32S3GPIOState gpio;
     Esp32s3RngState rng;
+    Esp32S3TWAIState twai;
 
     Esp32s3RtcCntlState rtc_cntl;
 
@@ -333,9 +335,10 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
 {
     Esp32s3SocState *s = ESP32S3_SOC(dev);
     MachineState *ms = MACHINE(qdev_get_machine());
+    DeviceState* intmatrix_dev = DEVICE(&s->intmatrix);
+    MemoryRegion *sys_mem = get_system_memory();
 
     const struct MemmapEntry *memmap = esp32s3_memmap;
-    MemoryRegion *sys_mem = get_system_memory();
 
     MemoryRegion *iram = g_new(MemoryRegion, 1);
     MemoryRegion *rtcslow = g_new(MemoryRegion, 1);
@@ -380,7 +383,6 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
         object_property_set_link(OBJECT(&s->intmatrix), name, OBJECT(qemu_get_cpu(i)), &error_abort);
     }
     qdev_realize(DEVICE(&s->intmatrix), &s->periph_bus, &error_fatal);
-    DeviceState* intmatrix_dev = DEVICE(&s->intmatrix);
 
 
     qdev_realize(DEVICE(&s->rtc_cntl), &s->rtc_bus, &error_fatal);
@@ -420,6 +422,17 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
     cpu_physical_memory_write(apb_ctrl_regs + RGB_QEMU_ORIGIN_REG, &qemu_sig, 4);
 
     qemu_register_reset((QEMUResetHandler*) esp32s3_soc_reset, dev);
+
+    /* TWAI realization */
+    {
+        /* Initialize and realize the TWAI device */
+        sysbus_realize(SYS_BUS_DEVICE(&s->twai), &error_fatal);
+        MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->twai), 0);
+        memory_region_add_subregion_overlap(sys_mem, DR_REG_TWAI_BASE, mr, 0);
+        /* Connect TWAI interrupt to the interrupt matrix */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->twai), 0,
+                          qdev_get_gpio_in(intmatrix_dev, ETS_TWAI_INTR_SOURCE));
+    }
 }
 
 
@@ -512,6 +525,8 @@ static void esp32s3_soc_init(Object *obj)
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_cpu_reset,  ESP32S3_RTC_CPU_RESET_GPIO, ESP32S3_CPU_COUNT);
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_cpu_stall,  ESP32S3_RTC_CPU_STALL_GPIO, ESP32S3_CPU_COUNT);
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_clk_update, ESP32S3_RTC_CLK_UPDATE_GPIO, 1);
+
+    object_initialize_child(obj, "twai", &s->twai, TYPE_ESP32S3_TWAI);
 }
 
 static Property esp32s3_soc_properties[] = {
