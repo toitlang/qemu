@@ -159,9 +159,11 @@ static void esp32_twai_realize(DeviceState *dev, Error **errp)
     can_sja_init(&s->sja_state, s->irq_handler);
 
     /* Connect to CAN bus */
-    if (can_sja_connect_to_bus(&s->sja_state, s->canbus) < 0) {
-        error_setg(errp, "Failed to connect TWAI to CAN bus");
-        return;
+    if (s->canbus) {
+        if (can_sja_connect_to_bus(&s->sja_state, s->canbus) < 0) {
+            error_setg(errp, "Failed to connect TWAI to CAN bus");
+            return;
+        }
     }
 }
 
