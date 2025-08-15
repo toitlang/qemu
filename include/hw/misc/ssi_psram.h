@@ -14,7 +14,9 @@ typedef enum PsramState {
     ST_CMD_ADDR0,   /* Received the 1st byte of the 32-bit address */
     ST_CMD_ADDR1,   /* Received the 2nd byte of the 32-bit address */
     ST_CMD_ADDR2,   /* Received the 3rd byte of the 32-bit address */
+    ST_DUMMY_CYCLE, /* Dummy cycles between the address and the data */
     ST_PROCESSING,  /* 32-bit address received, sending/receiving data */
+    ST_READ_ID,     /* Received ID command */
 } PsramState;
 
 
@@ -25,6 +27,7 @@ typedef struct SsiPsramState {
     int command;
     int addr;
     int byte_count;
+    int dummy_cycles;
     bool is_octal;
 
     uint8_t mr0;
