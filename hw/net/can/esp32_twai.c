@@ -36,8 +36,6 @@ static const VMStateDescription vmstate_esp32_twai = {
     .minimum_version_id = 1,
     .fields = (VMStateField[]) {
         VMSTATE_STRUCT(sja_state, Esp32TWAIState, 0, vmstate_can_sja, CanSJA1000State),
-        VMSTATE_UINT32(interrupt_enable, Esp32TWAIState),
-        VMSTATE_UINT32(interrupt_state, Esp32TWAIState),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -49,34 +47,14 @@ static void esp32_twai_reset(Object *obj, ResetType type)
 
     /* Reset underlying SJA1000 hardware to its default state */
     can_sja_hardware_reset(&s->sja_state);
-    
-    /* Initialize interrupt control registers to their reset values:
-     * - Enable Transmit, Receive and Error interrupts by default
-     * - Clear any pending interrupt state
-     */
-    s->interrupt_enable = ESP32_TWAI_INTR_TI | ESP32_TWAI_INTR_RI | 
-                         ESP32_TWAI_INTR_EI;
-    s->interrupt_state = 0;
 }
 
 /* Interrupt handler for SJA1000 events */
 static void esp32_twai_irq_handler(void *opaque, int irq_num, int level)
 {
-    Esp32TWAIState *s = (Esp32TWAIState *)opaque;
+    Esp32TWAIState *d = opaque;
 
-    /* Track the interrupt state from the underlying SJA1000 controller */
-    s->interrupt_state = level;
-    
-    /* Only forward interrupts to the CPU if they are enabled in the mask.
-     * The interrupt enable mask defaults to enabled state for basic operation.
-     */
-    if (s->interrupt_enable != 0) {
-        if (level) {
-            qemu_irq_raise(s->irq);
-        } else {
-            qemu_irq_lower(s->irq);
-        }
-    }
+    qemu_set_irq(d->irq, level);
 }
 
 /* Memory-mapped I/O read handler for the TWAI peripheral.

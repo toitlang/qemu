@@ -24,11 +24,6 @@
 /* ESP32 uses 32-bit aligned addresses, so multiply SJA1000 memory size by 4 */
 #define ESP32_TWAI_MEM_SIZE (CAN_SJA_MEM_SIZE << 2)
 
-/* ESP32 TWAI interrupt definitions */
-#define ESP32_TWAI_INTR_TI    (0x1 << 1)    /* Transmit Interrupt */
-#define ESP32_TWAI_INTR_RI    (0x1 << 0)    /* Receive Interrupt */
-#define ESP32_TWAI_INTR_EI    (0x1 << 2)    /* Error Interrupt */
-
 typedef struct Esp32TWAIState {
     SysBusDevice parent_obj;
     MemoryRegion iomem;
@@ -36,8 +31,6 @@ typedef struct Esp32TWAIState {
     CanSJA1000State sja_state;    /* Underlying SJA1000 controller state */
     qemu_irq irq;                 /* System bus IRQ */
     qemu_irq irq_handler;         /* Interrupt proxy handler */
-    uint32_t interrupt_enable;    /* Interrupt enable mask */
-    uint32_t interrupt_state;     /* Current interrupt state */
     CanBusState *canbus;         /* CAN bus interface */
 } Esp32TWAIState;
 
