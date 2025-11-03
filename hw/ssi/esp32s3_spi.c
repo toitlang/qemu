@@ -56,6 +56,14 @@ typedef struct ESP32S3SpiTransaction {
     uint32_t rx_bytes;
 } ESP32S3SpiTransaction;
 
+/*
+static void esp32s3_spi_cs_set(ESP32S3SpiState *s, int value)
+{
+    for (int i = 0; i < 2; ++i) {
+        qemu_set_irq(s->cs_gpio[i], ((s->mem_misc & (1 << i)) == 0) ? value : 1);
+    }
+}
+*/
 
 static uint64_t esp32s3_spi_read(void *opaque, hwaddr addr, unsigned int size)
 {
@@ -468,6 +476,7 @@ static void esp32s3_spi_reset_hold(Object *obj, ResetType type)
     s->mem_user1 = FIELD_DP32(s->mem_user1, SPI_MEM_USER1, USR_DUMMY_CYCLELEN, 7);
 
     s->mem_user2 = FIELD_DP32(s->mem_user2, SPI_MEM_USER2, USR_COMMAND_BITLEN, 7);
+    //s->mem_misc = 6;
 
     /* In case more registers are supported in the future (MEM_MISC, MEM_TX_CRC, ...)
      * update this function with their default values */

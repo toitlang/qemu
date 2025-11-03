@@ -67,6 +67,7 @@ static DmaRegister esp32s3_generic_reg(uint32_t reg)
 }
 
 
+
 static uint64_t esp32s3_gdma_read(void *opaque, hwaddr addr, unsigned int size)
 {
     ESP32S3GdmaState *s = ESP32S3_GDMA(opaque);

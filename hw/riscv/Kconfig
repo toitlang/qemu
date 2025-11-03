@@ -118,5 +118,5 @@ config RISCV_ESP32C3
     depends on RISCV32
     select OPENCORES_ETH
     select UNIMP
-    select ESP_RGB
+
 

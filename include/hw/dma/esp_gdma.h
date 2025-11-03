@@ -158,6 +158,7 @@ bool esp_gdma_get_channel_periph(ESPGdmaState *s, GdmaPeripheral periph, int dir
 bool esp_gdma_read_channel(ESPGdmaState *s, uint32_t chan, uint8_t* buffer, uint32_t size);
 bool esp_gdma_write_channel(ESPGdmaState *s, uint32_t chan, uint8_t* buffer, uint32_t size);
 
+int esp_gdma_get_transfer_size(ESPGdmaState *s, uint32_t chan);
 
 /**
  * @brief Function only meant to be used by inherited classes

@@ -45,9 +45,22 @@
 #include "elf.h"
 
 #include "hw/ssi/esp32s3_spi.h"
+#include "hw/ssi/esp32s3_lcd.h"
 #include "hw/misc/esp32s3_cache.h"
 #include "hw/char/esp32s3_uart.h"
 #include "hw/misc/esp32s3_rng.h"
+#include "hw/misc/esp32_wifi.h"
+#include "hw/misc/esp32_mcpwm.h"
+#include "hw/i2c/esp32_i2c.h"
+
+
+#include "hw/misc/esp32_ana.h"
+#include "hw/misc/esp32_fe.h"
+#include "hw/misc/esp32_phya.h"
+
+
+#include "hw/ssi/esp32s3_rmt.h"
+#include "hw/misc/servo.h"
 
 #include "hw/nvram/esp32s3_efuse.h"
 #include "hw/xtensa/esp32s3_clk.h"
@@ -58,16 +71,19 @@
 #include "hw/misc/esp32s3_hmac.h"
 #include "hw/misc/esp32s3_ds.h"
 #include "hw/timer/esp32s3_timg.h"
+#include "hw/misc/esp32c3_ledc.h"
+//#include "hw/timer/esp32c3_timg.h"
 #include "hw/timer/esp32s3_systimer.h"
 #include "hw/gpio/esp32s3_gpio.h"
 #include "hw/misc/esp32s3_xts_aes.h"
+#include "hw/misc/esp32s3_sens.h"
 #include "hw/misc/esp32s3_pms.h"
 #include "hw/net/can/esp32s3_twai.h"
 
 #include "cpu_esp32s3.h"
 
 #include "hw/misc/esp32c3_jtag.h"
-#include "hw/display/esp_rgb.h"
+//#include "hw/display/esp_rgb.h"
 
 #define TYPE_ESP32S3_SOC "xtensa.esp32s3"
 #define ESP32S3_SOC(obj) OBJECT_CHECK(Esp32s3SocState, (obj), TYPE_ESP32S3_SOC)
@@ -93,14 +109,14 @@ static const struct MemmapEntry {
 } esp32s3_memmap[] = {
     [ESP32S3_MEMREGION_DROM] = { 0x3ff00000, 0x20000 },
     [ESP32S3_MEMREGION_IROM] = { 0x40000000, 0x60000 },
-    [ESP32S3_MEMREGION_DRAM] = { 0x3FC80000, 0x170000 },
+    [ESP32S3_MEMREGION_DRAM] = { 0x3FC00000, 0x1f0000 },
     [ESP32S3_MEMREGION_IRAM] = { 0x40370000, 0x80000 },
-    [ESP32S3_MEMREGION_DCACHE] = { 0x3c000000, ESP32S3_EXTMEM_REGION_SIZE },
-    [ESP32S3_MEMREGION_ICACHE] = { 0x42000000, ESP32S3_EXTMEM_REGION_SIZE },
+    [ESP32S3_MEMREGION_DCACHE] = { 0x3C000000, 0x02000000 },
+    [ESP32S3_MEMREGION_ICACHE] = { 0x42000000, 0x02000000 },
     [ESP32S3_MEMREGION_RTCSLOW] = { 0x50000000, 0x2000 },
     [ESP32S3_MEMREGION_RTCFAST] = { 0x600fe000, 0x2000 },
     /* Virtual Framebuffer, used for the graphical interface */
-    [ESP32S3_MEMREGION_FRAMEBUF] = { 0x20000000, ESP_RGB_MAX_VRAM_SIZE },
+    //[ESP32S3_MEMREGION_FRAMEBUF] = { 0x20000000, ESP_RGB_MAX_VRAM_SIZE },
 };
 
 
@@ -131,16 +147,28 @@ typedef struct Esp32s3SocState {
     BusState periph_bus;
 
     MemoryRegion cpu_specific_mem[ESP32S3_CPU_COUNT];
-    ESP32S3SpiState spi1;
+    ESP32S3SpiState spi0,spi1;
+    ESP32S3LcdState lcd;
     ESP32S3CacheState cache;
     ESP32S3EfuseState efuse;
     ESP32S3ClockState clock;
     ESP32S3GdmaState gdma;
+    
     ESP32S3ShaState sha;
     ESP32S3AesState aes;
     ESP32S3RsaState rsa;
     ESP32S3HmacState hmac;
     ESP32S3DsState ds;
+    Esp32S3RmtState rmt;
+    Esp32WifiState wifi;
+    Esp32AnaState ana;
+    Esp32FeState fe;
+    Esp32PhyaState phya;
+    Esp32C3LEDCState ledc;
+    Esp32McpwmState mcpwm0;
+    Esp32McpwmState mcpwm1;
+    Esp32S3SensState sens;
+    Esp32I2CState i2c[2];
     ESP32S3PmsState pms;
 
     ESP32S3XtsAesState xts_aes;
@@ -148,13 +176,15 @@ typedef struct Esp32s3SocState {
     ESP32S3SysTimerState systimer;
 
     ESP32C3UsbJtagState jtag;
-    ESPRgbState rgb;
+    //ESPRgbState rgb;
 
     MemoryRegion iomem;
     DeviceState *eth;
     SsiPsramState *psram;
 
     uint32_t requested_reset;
+
+    bool has_psram;
 } Esp32s3SocState;
 
 
@@ -205,10 +235,25 @@ static void esp32s3_soc_reset(DeviceState *dev)
         s->requested_reset = ESP32S3_SOC_RESET_ALL;
     }
     if (s->requested_reset & ESP32S3_SOC_RESET_PERIPH) {
+        device_cold_reset(DEVICE(&s->cache));
         device_cold_reset(DEVICE(&s->intmatrix));
         for (int i = 0; i < ESP32S3_UART_COUNT; ++i) {
             device_cold_reset(DEVICE(&s->uart[i]));
         }
+        device_cold_reset(DEVICE(&s->gpio));
+        device_cold_reset(DEVICE(&s->ledc));
+        device_cold_reset(DEVICE(&s->lcd));
+	    if(qemu_find_nic_info(TYPE_ESP32_WIFI, false, NULL)!=NULL)
+    	    device_cold_reset(DEVICE(&s->wifi));
+    	device_cold_reset(DEVICE(&s->rmt));
+        device_cold_reset(DEVICE(&s->gdma));
+        device_cold_reset(DEVICE(&s->mcpwm0));
+        device_cold_reset(DEVICE(&s->mcpwm1));
+        device_cold_reset(DEVICE(&s->spi1));
+        device_cold_reset(DEVICE(&s->timg[0]));
+        device_cold_reset(DEVICE(&s->timg[1]));
+        device_cold_reset(DEVICE(&s->i2c[0]));
+        device_cold_reset(DEVICE(&s->i2c[1]));
     }
     if (s->requested_reset & ESP32S3_SOC_RESET_PROCPU) {
         xtensa_select_static_vectors(&s->cpu[0].env, s->rtc_cntl.stat_vector_sel[0]);
@@ -220,6 +265,7 @@ static void esp32s3_soc_reset(DeviceState *dev)
         remove_cpu_watchpoints(&s->cpu[1]);
         cpu_reset(CPU(&s->cpu[1]));
     }
+
     s->requested_reset = 0;
 }
 
@@ -229,6 +275,12 @@ static void esp32s3_cpu_stall(void* opaque, int n, int level)
 
 static void esp32s3_clk_update(void* opaque, int n, int level)
 {
+    Esp32s3SocState *s=(Esp32s3SocState *)opaque;
+    int cpuperconf=s->clock.cpuperconf;
+    int cpu_clk_freq=80000000*(cpuperconf+1);
+    //printf("set freq %d\n",cpu_clk_freq);
+    clock_update_hz(s->cpu[0].clock, cpu_clk_freq );
+    clock_update_hz(s->cpu[1].clock, cpu_clk_freq );
     if (!level) {
         return;
     }
@@ -238,10 +290,10 @@ static void esp32s3_soc_add_periph_device(MemoryRegion *dest, void* dev, hwaddr 
 {
     MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(dev), 0);
     memory_region_add_subregion_overlap(dest, dport_base_addr, mr, 0);
-    MemoryRegion *mr_apb = g_new(MemoryRegion, 1);
-    char *name = g_strdup_printf("mr-apb-0x%08x", (uint32_t) dport_base_addr);
-    memory_region_init_alias(mr_apb, OBJECT(dev), name, mr, 0, memory_region_size(mr));
-    g_free(name);
+//    MemoryRegion *mr_apb = g_new(MemoryRegion, 1);
+//    char *name = g_strdup_printf("mr-apb-0x%08x", (uint32_t) dport_base_addr);
+//    memory_region_init_alias(mr_apb, OBJECT(dev), name, mr, 0, memory_region_size(mr));
+//    g_free(name);
 }
 
 #define MB (1024*1024)
@@ -281,20 +333,6 @@ static void esp32s3_init_spi_flash(Esp32s3SocState *ms, BlockBackend* blk)
                                 qdev_get_gpio_in_named(flash_dev, SSI_GPIO_CS, 0));
 }
 
-static void esp32s3_machine_init_psram(Esp32s3SocState *ms, uint32_t size_mbytes)
-{
-    /* PSRAM attached to SPI1, CS1 */
-    DeviceState *spi_master = DEVICE(&ms->spi1);
-    BusState* spi_bus = qdev_get_child_bus(spi_master, "spi");
-    DeviceState *psram = qdev_new(TYPE_SSI_PSRAM);
-    qdev_prop_set_uint32(psram, "size_mbytes", size_mbytes);
-    qdev_prop_set_uint8(psram, "cs", 1);
-    qdev_realize(psram, spi_bus, &error_fatal);
-    ms->psram = SSI_PSRAM(psram);
-    qdev_connect_gpio_out_named(spi_master, SSI_GPIO_CS, 1,
-                                qdev_get_gpio_in_named(psram, SSI_GPIO_CS, 0));
-}
-
 struct Esp32s3MachineState {
     MachineState parent;
 
@@ -302,6 +340,31 @@ struct Esp32s3MachineState {
     DeviceState *flash_dev;
 };
 #define TYPE_ESP32S3_MACHINE MACHINE_TYPE_NAME("esp32s3")
+
+static void esp32s3_machine_init_psram(Esp32s3SocState *ss, uint32_t size_mbytes)
+{
+    /* PSRAM attached to SPI1, CS1 */
+    DeviceState *spi_master = DEVICE(&ss->spi1);
+    BusState* spi_bus = qdev_get_child_bus(spi_master, "spi");
+    DeviceState *psram = qdev_new(TYPE_SSI_PSRAM);
+    qdev_prop_set_uint32(psram, "size_mbytes", size_mbytes);
+    qdev_prop_set_uint8(psram, "cs", 1);
+    qdev_prop_set_bit(psram, "is_octal", TRUE);
+    qdev_realize(psram, spi_bus, &error_fatal);
+    qdev_connect_gpio_out_named(spi_master, SSI_GPIO_CS, 1,
+                                qdev_get_gpio_in_named(psram, SSI_GPIO_CS, 0));
+    printf("Added %dM PSRAM\n",size_mbytes);
+    ss->psram=SSI_PSRAM(psram);
+    //memory_region_init_ram(&ss->psram->data_mr, NULL, "esp32s3.psram_mem", size_mbytes*1024*1024, &error_fatal);
+}
+static void esp32_machine_init_i2c(Esp32s3SocState *s)
+{
+    DeviceState *i2c_master = DEVICE(&s->i2c[0]);
+    I2CBus* i2c_bus = I2C_BUS(qdev_get_child_bus(i2c_master, "i2c"));
+    I2CSlave* tmp105 = i2c_slave_create_simple(i2c_bus, "tmp105", 0x48);
+    object_property_set_int(OBJECT(tmp105), "temperature", 25 * 1000, &error_fatal);
+    i2c_slave_create_simple(i2c_bus, "mpu6050", 0x68);
+}
 
 static void esp32s3_init_openeth(Esp32s3SocState *ms)
 {
@@ -311,23 +374,42 @@ static void esp32s3_init_openeth(Esp32s3SocState *ms)
     MemoryRegion* sys_mem = get_system_memory();
 
     /* Create a new OpenCores Ethernet component */
-    DeviceState* open_eth_dev = qemu_create_nic_device("open_eth", true, NULL);
-    if (!open_eth_dev) {
-        return;
-    }
-    ms->eth = open_eth_dev;
-    sbd = SYS_BUS_DEVICE(open_eth_dev);
-    sysbus_realize(sbd, &error_fatal);
+    const char* type_openeth = "open_eth";
+    NICInfo *nd = qemu_find_nic_info(type_openeth, false, NULL);
+    if(nd!=NULL) {
+  //  DeviceState* open_eth_dev = qemu_create_nic_device("open_eth", true, NULL);
+    	DeviceState* open_eth_dev = qdev_new(type_openeth);
+    
+    	ms->eth = open_eth_dev;
+   	 	sbd = SYS_BUS_DEVICE(open_eth_dev);
+    	sysbus_realize(sbd, &error_fatal);
 
     /* OpenCores Ethernet has two memory regions: one for registers and one for descriptors,
         * we need to provide one I/O range for each of them */
-    mr = sysbus_mmio_get_region(sbd, 0);
-    memory_region_add_subregion_overlap(sys_mem, DR_REG_EMAC_BASE, mr, 0);
-    mr = sysbus_mmio_get_region(sbd, 1);
-    memory_region_add_subregion_overlap(sys_mem, DR_REG_EMAC_BASE + 0x400, mr, 0);
+    	mr = sysbus_mmio_get_region(sbd, 0);
+    	memory_region_add_subregion_overlap(sys_mem, DR_REG_EMAC_BASE, mr, 0);
+    	mr = sysbus_mmio_get_region(sbd, 1);
+    	memory_region_add_subregion_overlap(sys_mem, DR_REG_EMAC_BASE + 0x400, mr, 0);
 
-    sysbus_connect_irq(sbd, 0,
+    	sysbus_connect_irq(sbd, 0,
                         qdev_get_gpio_in(DEVICE(&ms->intmatrix), ETS_ETH_MAC_INTR_SOURCE));
+    } 
+    nd = qemu_find_nic_info(TYPE_ESP32_WIFI, false, NULL);
+    if(nd!=NULL) {
+        qdev_set_nic_properties(DEVICE(&ms->wifi), nd);
+        sbd = SYS_BUS_DEVICE(DEVICE(&ms->wifi));
+        sysbus_realize_and_unref(sbd, &error_fatal);
+        //sysbus_realize(SYS_BUS_DEVICE(&ms->wifi), &error_fatal);
+        mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ms->wifi), 0);
+        memory_region_add_subregion_overlap(sys_mem, DR_REG_WIFI_BASE, mr, 0);
+        
+//        esp32_soc_add_periph_device(sys_mem, &ms->wifi, DR_REG_WIFI_BASE);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&ms->wifi), 0,
+                   qdev_get_gpio_in(DEVICE(&ms->intmatrix), ETS_WIFI_MAC_INTR_SOURCE));
+    }
+
+
+                        
 }
 
 
@@ -357,12 +439,24 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
         snprintf(name, sizeof(name), "esp32s3.drom.cpu%d", i);
         memory_region_init_alias(drom, NULL, name, irom, offset_in_orig, memmap[ESP32S3_MEMREGION_DROM].size);
         memory_region_add_subregion(sys_mem, memmap[ESP32S3_MEMREGION_DROM].base, drom);
+
     }
 
 
     memory_region_init_ram(iram, NULL, "esp32s3.iram",
                            memmap[ESP32S3_MEMREGION_IRAM].size, &error_fatal);
     memory_region_add_subregion(sys_mem, memmap[ESP32S3_MEMREGION_IRAM].base, iram);
+/*
+    MemoryRegion *icache = g_new(MemoryRegion, 1);
+    memory_region_init_ram(icache, NULL, "esp32s3.icache",
+                           memmap[ESP32S3_MEMREGION_ICACHE].size, &error_fatal);
+    memory_region_add_subregion_overlap(sys_mem, memmap[ESP32S3_MEMREGION_ICACHE].base, icache,0);
+
+    MemoryRegion *dcache = g_new(MemoryRegion, 1);
+    memory_region_init_ram(dcache, NULL, "esp32s3.dcache",
+                           memmap[ESP32S3_MEMREGION_DCACHE].size, &error_fatal);
+    memory_region_add_subregion(sys_mem, memmap[ESP32S3_MEMREGION_DCACHE].base, dcache);
+    */
 
     memory_region_init_ram(rtcslow, NULL, "esp32s3.rtcslow",
                            memmap[ESP32S3_MEMREGION_RTCSLOW].size, &error_fatal);
@@ -390,8 +484,8 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
 
     qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_RTC_DIG_RESET_GPIO, 0,
                                 qdev_get_gpio_in_named(dev, ESP32S3_RTC_DIG_RESET_GPIO, 0));
-    qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_RTC_CLK_UPDATE_GPIO, 0,
-                                qdev_get_gpio_in_named(dev, ESP32S3_RTC_CLK_UPDATE_GPIO, 0));
+    
+    
     for (int i = 0; i < ms->smp.cpus; ++i) {
         qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_RTC_CPU_RESET_GPIO, i,
                                     qdev_get_gpio_in_named(dev, ESP32S3_RTC_CPU_RESET_GPIO, i));
@@ -423,33 +517,60 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
 
     qemu_register_reset((QEMUResetHandler*) esp32s3_soc_reset, dev);
 
-    /* TWAI realization */
-    {
-        /* Initialize and realize the TWAI device */
-        sysbus_realize(SYS_BUS_DEVICE(&s->twai), &error_fatal);
-        MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->twai), 0);
-        memory_region_add_subregion_overlap(sys_mem, DR_REG_TWAI_BASE, mr, 0);
-        /* Connect TWAI interrupt to the interrupt matrix */
-        sysbus_connect_irq(SYS_BUS_DEVICE(&s->twai), 0,
-                          qdev_get_gpio_in(intmatrix_dev, ETS_TWAI_INTR_SOURCE));
-    }
+
+
 }
 
+static bool addr_in_range(hwaddr addr, hwaddr start, hwaddr end)
+{
+    return addr >= start && addr < end;
+}
+
+#define A_SYSCON_ORIGIN_REG     0x3F8
+#define A_SYSCON_RND_DATA_REG   0x0B0
 
 static uint64_t esp32s3_io_read(void *opaque, hwaddr addr, unsigned int size)
 {
+//	qemu_log("[ESP32-S3] read from $%08lx, size = %i\n", ESP32S3_IO_START_ADDR + addr, size);
+
+    if (addr_in_range(addr + ESP32S3_IO_START_ADDR, DR_REG_RTC_I2C_BASE, DR_REG_RTC_I2C_BASE + 0x100)) {
+        return (uint32_t) 0xffffff;
+    } else if (addr + ESP32S3_IO_START_ADDR == DR_REG_SYSCON_BASE + A_SYSCON_ORIGIN_REG) {
+        // Return "QEMU" as a 32-bit value 
+        return 0x51454d55;
+    } else if (addr + ESP32S3_IO_START_ADDR == DR_REG_SYSCON_BASE + A_SYSCON_RND_DATA_REG) {
+        // Return a random 32-bit value 
+        static bool init = false;
+        if (!init) {
+            srand(time(NULL));
+            init = true;
+        }
+        return rand();
+    } else if (addr + ESP32S3_IO_START_ADDR == DR_REG_ASSIST_DEBUG_BASE + A_ASSIST_DEBUG_CORE_0_DEBUG_MODE_REG) {
+        return 0;
+    } else {
 #if ESP32S3_IO_WARNING
-    warn_report("[ESP32-S3] Unsupported read to $%08lx, size = %i\n", ESP32S3_IO_START_ADDR + addr, size);
+        printf("[ESP32-S3] Unsupported read to $%08lx, size = %i\n", ESP32S3_IO_START_ADDR + addr, size);
 #endif
-    return 0;
+    }
+ 
+    uint32_t *mem=(uint32_t *)opaque;
+    uint32_t v=mem[addr/4];
+#if ESP32S3_IO_WARNING
+    qemu_log("[ESP32-S3] read from $%08lx,%x\n",ESP32S3_IO_START_ADDR + addr, v);
+#endif
+    return v;
 }
 
 
 static void esp32s3_io_write(void *opaque, hwaddr addr, uint64_t value, unsigned int size)
 {
+//qemu_log("[ESP32-S3] Unsupported write $%08lx = %08lx\n", ESP32S3_IO_START_ADDR + addr, value);
 #if ESP32S3_IO_WARNING
-        warn_report("[ESP32-S3] Unsupported write $%08lx = %08lx\n", ESP32S3_IO_START_ADDR + addr, value);
+        printf("[ESP32-S3] Unsupported write $%08lx = %08lx\n", ESP32S3_IO_START_ADDR + addr, value);
 #endif
+    uint32_t *mem=(uint32_t *)opaque;
+    mem[addr/4]=value;
 }
 
 
@@ -524,9 +645,7 @@ static void esp32s3_soc_init(Object *obj)
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_dig_reset,  ESP32S3_RTC_DIG_RESET_GPIO, 1);
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_cpu_reset,  ESP32S3_RTC_CPU_RESET_GPIO, ESP32S3_CPU_COUNT);
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_cpu_stall,  ESP32S3_RTC_CPU_STALL_GPIO, ESP32S3_CPU_COUNT);
-    qdev_init_gpio_in_named(DEVICE(s), esp32s3_clk_update, ESP32S3_RTC_CLK_UPDATE_GPIO, 1);
-
-    object_initialize_child(obj, "twai", &s->twai, TYPE_ESP32S3_TWAI);
+    qdev_init_gpio_in_named(DEVICE(s), esp32s3_clk_update, ESP32S3_CLK_UPDATE_GPIO, 1);
 }
 
 static Property esp32s3_soc_properties[] = {
@@ -576,6 +695,14 @@ static void esp32s3_soc_add_unimp_device(MemoryRegion *dest, const char* name, h
     g_free(name_apb);
 }
 
+
+static void add_ram_device(Esp32s3SocState *ss, const char* name, hwaddr base_addr, size_t size) {
+    MemoryRegion *dest=g_new(MemoryRegion, 1);
+    char *ram_memory=malloc(size);
+    memory_region_init_io(dest, NULL, &esp32s3_io_ops, ram_memory, name,size);
+    memory_region_add_subregion(get_system_memory(), ESP32S3_IO_START_ADDR, dest);
+}
+
 static void esp32s3_machine_init(MachineState *machine)
 {
     DriveInfo *dinfo = drive_get(IF_MTD, 0, 0);
@@ -595,28 +722,47 @@ static void esp32s3_machine_init(MachineState *machine)
 
     MemoryRegion *dram = g_new(MemoryRegion, 1);
     const struct MemmapEntry *memmap = esp32s3_memmap;
-
     memory_region_init_ram(dram, NULL, "esp32s3.dram",
                            memmap[ESP32S3_MEMREGION_DRAM].size, &error_fatal);
     memory_region_add_subregion(sys_mem, memmap[ESP32S3_MEMREGION_DRAM].base, dram);
 
+    add_ram_device(ss, "ramdev",ESP32S3_IO_START_ADDR, 0xd1000);
 
-    memory_region_init_io(&ss->iomem, OBJECT(&ss->cpu[0]), &esp32s3_io_ops,
-                          NULL, "esp32s3.iomem", 0xd1000);
-    memory_region_add_subregion(sys_mem, ESP32S3_IO_START_ADDR, &ss->iomem);
+    {
+    MemoryRegion *mr= g_new(MemoryRegion, 1);
+    memory_region_init_ram(mr, NULL, "esp32s3.lpm", 0x2000,  &error_fatal);
+    memory_region_add_subregion(sys_mem, DR_REG_RTCCNTL_BASE, mr);
+    }
+
+//    memory_region_init_io(&ss->iomem, OBJECT(&ss->cpu[0]), &esp32s3_io_ops,
+//                          NULL, "esp32s3.iomem", 0xd1000);
+//    memory_region_add_subregion_overlap(sys_mem, ESP32S3_IO_START_ADDR, &ss->iomem,-100);
 
     // qdev_prop_set_chr(DEVICE(ss), "serial0", serial_hd(0));
     // qdev_prop_set_chr(DEVICE(ss), "serial1", serial_hd(1));
     // qdev_prop_set_chr(DEVICE(ss), "serial2", serial_hd(2));
 
+    if (machine->ram_size > 0) {
+        ss->has_psram=true;
+    }
+
     qdev_realize(DEVICE(ss), NULL, &error_fatal);
 
+    
+
     object_initialize_child(OBJECT(ss), "extmem", &ss->cache, TYPE_ESP32S3_CACHE);
+    object_initialize_child(OBJECT(ss), "spi0", &ss->spi0, TYPE_ESP32S3_SPI);
     object_initialize_child(OBJECT(ss), "spi1", &ss->spi1, TYPE_ESP32S3_SPI);
+    
     object_initialize_child(OBJECT(ss), "efuse", &ss->efuse, TYPE_ESP32S3_EFUSE);
     object_initialize_child(OBJECT(ss), "jtag", &ss->jtag, TYPE_ESP32C3_JTAG);
     object_initialize_child(OBJECT(ss), "gpio", &ss->gpio, TYPE_ESP32S3_GPIO);
     object_initialize_child(OBJECT(ss), "rng", &ss->rng, TYPE_ESP32S3_RNG);
+   object_initialize_child(OBJECT(ss), "rmt", &ss->rmt, TYPE_ESP32S3_RMT);
+   object_initialize_child(OBJECT(ss), "ana", &ss->ana, TYPE_ESP32_ANA);
+   object_initialize_child(OBJECT(ss), "fe", &ss->fe, TYPE_ESP32_FE);
+
+    object_initialize_child(OBJECT(ss), "phya", &ss->phya, TYPE_ESP32_PHYA);
 
     object_initialize_child(OBJECT(ss), "clock", &ss->clock, TYPE_ESP32S3_CLOCK);
 
@@ -626,13 +772,28 @@ static void esp32s3_machine_init(MachineState *machine)
     object_initialize_child(OBJECT(ss), "rsa", &ss->rsa, TYPE_ESP32S3_RSA);
     object_initialize_child(OBJECT(ss), "hmac", &ss->hmac, TYPE_ESP32S3_HMAC);
     object_initialize_child(OBJECT(ss), "ds", &ss->ds, TYPE_ESP32S3_DS);
+    object_initialize_child(OBJECT(ss), "ledc", &ss->ledc, TYPE_ESP32C3_LEDC);
     object_initialize_child(OBJECT(ss), "pms", &ss->pms, TYPE_ESP32S3_PMS);
 
     object_initialize_child(OBJECT(ss), "xts_aes", &ss->xts_aes, TYPE_ESP32S3_XTS_AES);
     object_initialize_child(OBJECT(ss), "timg0", &ss->timg[0], TYPE_ESP32S3_TIMG);
     object_initialize_child(OBJECT(ss), "timg1", &ss->timg[1], TYPE_ESP32S3_TIMG);
     object_initialize_child(OBJECT(ss), "systimer", &ss->systimer, TYPE_ESP32S3_SYSTIMER);
-    object_initialize_child(OBJECT(ss), "rgb", &ss->rgb, TYPE_ESP_RGB);
+    object_initialize_child(OBJECT(ss), "lcd", &ss->lcd, TYPE_ESP32S3_LCD);
+    object_initialize_child(OBJECT(ss), "mcpwm0", &ss->mcpwm0, TYPE_ESP32_MCPWM);
+    object_initialize_child(OBJECT(ss), "mcpwm1", &ss->mcpwm1, TYPE_ESP32_MCPWM);
+    object_initialize_child(OBJECT(ss), "sens", &ss->sens, TYPE_ESP32S3_SENS);
+    object_initialize_child(OBJECT(ss), "i2c0", &ss->i2c[0], TYPE_ESP32_I2C);
+    object_initialize_child(OBJECT(ss), "i2c1", &ss->i2c[1], TYPE_ESP32_I2C);
+
+    if(qemu_find_nic_info(TYPE_ESP32_WIFI, false, NULL)!=NULL)
+            object_initialize_child(OBJECT(ss), "wifi", &ss->wifi, TYPE_ESP32_WIFI);
+
+    // these peripherals need to know which device we are
+    ss->wifi.iss3=1;
+    ss->ana.iss3=1;
+    ss->i2c[0].iss3=1;
+    ss->i2c[1].iss3=1;
 
     DeviceState* intmatrix_dev = DEVICE(&ss->intmatrix);
     {
@@ -641,8 +802,6 @@ static void esp32s3_machine_init(MachineState *machine)
         memory_region_add_subregion_overlap(sys_mem, DR_REG_INTERRUPT_BASE, mr, 0);
     }
 
-    /* Initialize OpenCores Ethernet controller now sicne it requires the interrupt matrix */
-    esp32s3_init_openeth(ss);
 
     /* USB Serial JTAG realization */
     {
@@ -660,9 +819,14 @@ static void esp32s3_machine_init(MachineState *machine)
         if (blk) {
             esp32s3_init_spi_flash(ss, blk);
         }
-        if (machine->ram_size > 0) {
-            esp32s3_machine_init_psram(ss, (uint32_t) (machine->ram_size / MiB));
-        }
+        sysbus_realize(SYS_BUS_DEVICE(&ss->spi0), &error_fatal);
+        mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->spi0), 0);
+        memory_region_add_subregion_overlap(sys_mem, DR_REG_SPI0_BASE, mr, 0);
+
+    }
+
+    if (machine->ram_size > 0) {
+        esp32s3_machine_init_psram(ss, (uint32_t) (machine->ram_size / MiB));
     }
 
     /* (Extmem) Cache realization */
@@ -701,6 +865,8 @@ static void esp32s3_machine_init(MachineState *machine)
             sysbus_connect_irq(SYS_BUS_DEVICE(&ss->clock), i,
                            qdev_get_gpio_in(intmatrix_dev, ETS_FROM_CPU_INTR0_SOURCE + i));
         }
+        qdev_connect_gpio_out_named(DEVICE(&ss->clock), ESP32S3_CLK_UPDATE_GPIO, 0,
+                                qdev_get_gpio_in_named(DEVICE(ss), ESP32S3_CLK_UPDATE_GPIO, 0));
     }
     /* Timer Groups realization */
     {
@@ -749,12 +915,59 @@ static void esp32s3_machine_init(MachineState *machine)
         sysbus_realize(SYS_BUS_DEVICE(&ss->gpio), &error_fatal);
         MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->gpio), 0);
         memory_region_add_subregion_overlap(sys_mem, DR_REG_GPIO_BASE, mr, 0);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&ss->gpio),0,qdev_get_gpio_in(intmatrix_dev, ETS_GPIO_INTR_SOURCE));
+
+    }
+
+    {
+        qdev_realize(DEVICE(&ss->ledc), &ss->periph_bus, &error_fatal);
+        esp32s3_soc_add_periph_device(sys_mem, &ss->ledc, DR_REG_LEDC_BASE);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&ss->ledc), 0,
+                           qdev_get_gpio_in(intmatrix_dev, ETS_LEDC_INTR_SOURCE));
+        qdev_connect_gpio_out_named(DEVICE(&ss->ledc),"func_irq",0,
+                                                        qdev_get_gpio_in_named(DEVICE(&ss->gpio),ESP32_GPIOS_FUNC,0));
     }
 
     {
         qdev_realize(DEVICE(&ss->rng), &ss->periph_bus, &error_fatal);
         esp32s3_soc_add_periph_device(sys_mem, &ss->rng, ESP32S3_RNG_BASE);
 
+    }
+    {
+        qdev_realize(DEVICE(&ss->sens), &ss->periph_bus, &error_fatal);
+        esp32s3_soc_add_periph_device(sys_mem, &ss->sens, DR_REG_SENS_BASE);
+
+    }
+
+    {
+        const hwaddr i2c_base[] = {
+            DR_REG_I2C_EXT_BASE, DR_REG_I2C1_EXT_BASE
+        };
+        for (int i = 0; i < ESP32S3_I2C_COUNT; i++) {
+            qdev_realize(DEVICE(&ss->i2c[i]), sysbus_get_default(), &error_fatal);
+            esp32s3_soc_add_periph_device(sys_mem, &ss->i2c[i], i2c_base[i]);
+            sysbus_connect_irq(SYS_BUS_DEVICE(&ss->i2c[i]), 0,
+                           qdev_get_gpio_in(intmatrix_dev, ETS_I2C_EXT0_INTR_SOURCE + i));
+
+        }
+    }
+
+    {
+    object_property_set_int(OBJECT(&ss->mcpwm0),"func_sig_start",160, &error_abort);
+    qdev_realize(DEVICE(&ss->mcpwm0), &ss->periph_bus, &error_fatal);
+    esp32s3_soc_add_periph_device(sys_mem, &ss->mcpwm0, DR_REG_PWM0_BASE);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&ss->mcpwm0), 0,
+                           qdev_get_gpio_in(intmatrix_dev, ETS_PWM0_INTR_SOURCE));
+         object_property_set_int(OBJECT(&ss->mcpwm1),"func_sig_start",166, &error_abort);
+    qdev_realize(DEVICE(&ss->mcpwm1), &ss->periph_bus, &error_fatal);
+    esp32s3_soc_add_periph_device(sys_mem, &ss->mcpwm1, DR_REG_PWM1_BASE);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&ss->mcpwm1), 0,
+                           qdev_get_gpio_in(intmatrix_dev, ETS_PWM1_INTR_SOURCE));   
+    qdev_connect_gpio_out_named(DEVICE(&ss->mcpwm0),"func_irq",0,
+                                qdev_get_gpio_in_named(DEVICE(&ss->gpio),ESP32_GPIOS_FUNC,0));
+    qdev_connect_gpio_out_named(DEVICE(&ss->mcpwm1),"func_irq",0,
+                                    qdev_get_gpio_in_named(DEVICE(&ss->gpio),ESP32_GPIOS_FUNC,0));
+            
     }
 
 
@@ -771,7 +984,48 @@ static void esp32s3_machine_init(MachineState *machine)
             qdev_connect_gpio_out_named(DEVICE(&ss->gdma), ESP_GDMA_IRQ_OUT_NAME, i,
                                         qdev_get_gpio_in(intmatrix_dev, ETS_DMA_OUT_CH0_INTR_SOURCE + i));
         }
-   }
+    }
+    /* LCD controller */
+    {
+        ss->lcd.gdma = &ss->gdma.parent;
+    	sysbus_realize(SYS_BUS_DEVICE(&ss->lcd), &error_fatal);
+    	MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->lcd), 0);
+    	memory_region_add_subregion_overlap(sys_mem, DR_REG_LCD_CAM_BASE, mr, 0);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&ss->lcd), 0,
+                           qdev_get_gpio_in(intmatrix_dev, ETS_LCD_CAM_INTR_SOURCE));
+
+    }
+   
+        /* Initialize OpenCores Ethernet controller now sicne it requires the interrupt matrix */
+    esp32s3_init_openeth(ss);
+
+/*
+    create_unimplemented_device_def("esp32.fe2", DR_REG_FE2_BASE, 0x1000, -1);
+    create_unimplemented_device_def("esp32.chipv7_phy", DR_REG_PHY_BASE, 0x1000,-1);
+    create_unimplemented_device_def("esp32.chipv7_phyb", DR_REG_WDEV_BASE, 0x1000,0);
+    create_unimplemented_device_def("esp32.unknown_wifi", DR_REG_NRX_BASE  , 0x1000,-1);
+    create_unimplemented_device_def("esp32.unknown_wifi1", DR_REG_BB_BASE , 0x1000,-1);
+    create_unimplemented_device_def("esp32.bt", DR_REG_BT_BASE, 0x1000, 0);
+    */
+
+    DeviceState *disp = qdev_new( "st7789v");
+    object_property_set_bool(OBJECT(disp),"s3_skin",true, &error_abort);
+  
+    ssi_realize_and_unref(disp, ss->lcd.lcd, &error_fatal);
+
+//    DeviceState *disp=ssi_create_peripheral(ss->lcd.lcd, "st7789v");
+    ss->lcd.cmd_gpio=qdev_get_gpio_in_named(disp, "cmd", 0);
+//    qemu_set_irq(qdev_get_gpio_in_named(disp, "backlight", 0),1);
+   
+    esp32_machine_init_i2c(ss);
+
+
+    qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_GPIOS, 38, qdev_get_gpio_in_named(disp, "backlight", 0));
+    qemu_irq in0=qdev_get_gpio_in_named(DEVICE(&ss->gpio), ESP32_GPIOS_IN, 0);
+    qemu_irq in14=qdev_get_gpio_in_named(DEVICE(&ss->gpio), ESP32_GPIOS_IN, 14);
+    qdev_connect_gpio_out_named(disp, "buttons", 0, in0);
+    qdev_connect_gpio_out_named(disp, "buttons", 1, in14);
+
 
     /* SHA realization */
     {
@@ -781,6 +1035,25 @@ static void esp32s3_machine_init(MachineState *machine)
         memory_region_add_subregion_overlap(sys_mem, DR_REG_SHA_BASE, mr, 0);
         sysbus_connect_irq(SYS_BUS_DEVICE(&ss->sha), 0,
                            qdev_get_gpio_in(intmatrix_dev, ETS_SHA_INTR_SOURCE));
+    }
+
+    { 
+      sysbus_realize(SYS_BUS_DEVICE(&ss->ana), &error_fatal);
+      MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->ana), 0);
+      memory_region_add_subregion_overlap(sys_mem, DR_REG_ANA_BASE, mr, 0);
+      
+    }
+    { 
+      sysbus_realize(SYS_BUS_DEVICE(&ss->fe), &error_fatal);
+      MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->fe), 0);
+      memory_region_add_subregion_overlap(sys_mem, DR_REG_FE_BASE, mr, 0);
+      
+    }
+    { 
+      sysbus_realize(SYS_BUS_DEVICE(&ss->phya), &error_fatal);
+      MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->phya), 0);
+      memory_region_add_subregion_overlap(sys_mem, DR_REG_PHYA_BASE, mr, 0);
+      
     }
 
     /* AES realization */
@@ -826,6 +1099,7 @@ static void esp32s3_machine_init(MachineState *machine)
         MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->ds), 0);
         memory_region_add_subregion_overlap(sys_mem, DR_REG_DIGITAL_SIGNATURE_BASE, mr, 0);
     }
+
     /* XTS-AES realization */
     {
         ss->xts_aes.efuse = ESP_EFUSE(&ss->efuse);
@@ -835,17 +1109,21 @@ static void esp32s3_machine_init(MachineState *machine)
         memory_region_add_subregion_overlap(sys_mem, DR_REG_AES_XTS_BASE, mr, 0);
     }
 
-    /* RGB display realization */
     {
-        /* Give the internal RAM memory region to the display */
-        ss->rgb.intram = dram;
-        sysbus_realize(SYS_BUS_DEVICE(&ss->rgb), &error_fatal);
-        MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->rgb), 0);
-        memory_region_add_subregion_overlap(sys_mem, DR_REG_FRAMEBUF_BASE, mr, 0);
-        memory_region_add_subregion_overlap(sys_mem, esp32s3_memmap[ESP32S3_MEMREGION_FRAMEBUF].base, &ss->rgb.vram, 0);
-    }
+    qdev_realize(DEVICE(&ss->rmt), &ss->periph_bus, &error_fatal);
+        MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->rmt), 0);
+     memory_region_add_subregion_overlap(sys_mem, DR_REG_RMT_BASE, mr, 0);
 
-    esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.rmt", DR_REG_RMT_BASE, 0x1000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&ss->rmt), 0,
+                           qdev_get_gpio_in(intmatrix_dev, ETS_RMT_INTR_SOURCE));
+
+    ssi_create_peripheral(ss->rmt.rmt, "rgbled");
+  }
+
+    ServoState *servo=servo_create_simple(OBJECT(ss),"servo");
+    qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_GPIOS, 21, qdev_get_gpio_in(DEVICE(servo), 0));
+
+//    esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.rmt", DR_REG_RMT_BASE, 0x1000);
     esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.iomux", DR_REG_IO_MUX_BASE, 0x2000);
 
     /* Need MMU initialized prior to ELF loading,
@@ -929,7 +1207,7 @@ static ram_addr_t esp32s3_fixup_ram_size(ram_addr_t requested_size)
 {
     ram_addr_t size;
     if (requested_size == 0) {
-        size = 0;
+        size = 4 * MiB;
     } else if (requested_size <= 2 * MiB) {
         size = 2 * MiB;
     } else if (requested_size <= 4 * MiB ) {
@@ -941,8 +1219,8 @@ static ram_addr_t esp32s3_fixup_ram_size(ram_addr_t requested_size)
     } else if (requested_size <= 32 * MiB ) {
         size = 32 * MiB;
     } else {
-        qemu_log("RAM size larger than 32 MB not supported\n");
-        size = 32 * MiB;
+//        qemu_log("RAM size larger than 8 MB not supported\n");
+        size = 8 * MiB;
     }
     return size;
 }

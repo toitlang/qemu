@@ -29,9 +29,14 @@ config XTENSA_ESP32
     select UNIMP
     select OPENCORES_ETH
     select DWC_SDMMC
+    select I2C
     select TMP105
     select LED
-    select ESP_RGB
+    select SPLIT_IRQ
+    select MPU6050
+    select ST7789V
+    select RGB_LED
+
 
 config XTENSA_ESP32S3
     bool
@@ -42,7 +47,9 @@ config XTENSA_ESP32S3
     select UNIMP
     select OPENCORES_ETH
     select DWC_SDMMC
+    select I2C
     select TMP105
-    select ESP_RGB
-
+    select MPU6050
+    select ST7789V
+    select RGB_LED
 

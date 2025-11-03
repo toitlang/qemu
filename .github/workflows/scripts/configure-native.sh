@@ -15,12 +15,16 @@ echo DBG
 #   MinGW build ref: https://github.com/msys2/MINGW-packages/blob/master/mingw-w64-qemu/PKGBUILD
 
 ./configure \
-    --bindir=bin \
+    --bindir=xtensa-softmmu \
     --datadir=share/qemu \
     --enable-gcrypt \
-    --enable-sdl \
-    --enable-pixman \
+    --disable-sdl \
     --enable-slirp \
+    --disable-opengl \
+    --enable-vte \
+    --enable-gtk \
+    --enable-strip \
+    --enable-pixman \
     --enable-stack-protector \
     --extra-cflags=-Werror \
     --prefix=${PWD}/install/qemu \

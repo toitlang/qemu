@@ -29,6 +29,7 @@
 static void esp32s3_intmatrix_irq_handler(void *opaque, int n, int level)
 {
     Esp32s3IntMatrixState *s = ESP32S3_INTMATRIX(opaque);
+    s->irq_raw[n] = level;
     for (int i = 0; i < ESP32S3_CPU_COUNT; ++i) {
         if (s->outputs[i] == NULL) {
             continue;
@@ -61,6 +62,9 @@ static uint64_t esp32s3_intmatrix_read(void* opaque, hwaddr addr, unsigned int s
 {
     Esp32s3IntMatrixState *s = ESP32S3_INTMATRIX(opaque);
     uint8_t* map_entry = get_map_entry(s, addr);
+#if INTC_DEBUG
+info_report("esp32s3_intmatrix_read %lx:%x\n",addr, (map_entry != NULL) ? *map_entry : 0);
+#endif // INTC_DEBUG
     return (map_entry != NULL) ? *map_entry : 0;
 }
 
@@ -71,9 +75,20 @@ static void esp32s3_intmatrix_write(void* opaque, hwaddr addr, uint64_t value, u
 #endif // INTC_DEBUG
     Esp32s3IntMatrixState *s = ESP32S3_INTMATRIX(opaque);
     uint8_t* map_entry = get_map_entry(s, addr);
+    int source_index = (addr / sizeof(uint32_t)) % ESP32S3_INT_MATRIX_INPUTS;
+    if (value == INTMATRIX_UNINT_VALUE) {
+        int si = s->irq_raw[source_index];
+        esp32s3_intmatrix_irq_handler(s, source_index, 0);
+        s->irq_raw[source_index] = si;
+    }
+
     if (map_entry != NULL) {
         *map_entry = value & 0x1f;
     }
+    if (value != INTMATRIX_UNINT_VALUE && s->irq_raw[source_index]) {
+        esp32s3_intmatrix_irq_handler(s, source_index, 1);
+    }
+
 }
 
 static const MemoryRegionOps esp_intmatrix_ops = {
@@ -96,7 +111,7 @@ static void esp32s3_intmatrix_reset_hold(Object *obj, ResetType type)
     }
 }
 
-static void esp32s3_intmatrix_realize(DeviceState *dev, Error **errp)
+static void esp32s3_intmatrix_realize(DeviceState *dev, Error **errp) 
 {
     Esp32s3IntMatrixState *s = ESP32S3_INTMATRIX(dev);
 

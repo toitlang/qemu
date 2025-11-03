@@ -22,7 +22,7 @@ crypto_ss.add(files(
   'tlscredsx509.c',
   'tlssession.c',
   'rsakey.c',
-))
+),gnutls)
 
 if gnutls.found()
   crypto_ss.add(files('x509-utils.c'))

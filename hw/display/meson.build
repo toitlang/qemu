@@ -22,6 +22,10 @@ system_ss.add(when: 'CONFIG_VGA_MMIO', if_true: files('vga-mmio.c'))
 system_ss.add(when: 'CONFIG_VMWARE_VGA', if_true: files('vmware_vga.c'))
 system_ss.add(when: 'CONFIG_BOCHS_DISPLAY', if_true: files('bochs-display.c'))
 
+system_ss.add(when: 'CONFIG_ST7789V', if_true: files('st7789v.c','ttgo_board_skin.c','ttgos3_board_skin.c'))
+system_ss.add(when: 'CONFIG_RGB_LED', if_true: files('rgb_led.c'))
+
+#system_ss.add(when: 'CONFIG_BLIZZARD', if_true: files('blizzard.c'))
 system_ss.add(when: 'CONFIG_EXYNOS4', if_true: files('exynos4210_fimd.c'))
 system_ss.add(when: 'CONFIG_FRAMEBUFFER', if_true: files('framebuffer.c'))
 
@@ -31,7 +35,7 @@ system_ss.add(when: 'CONFIG_TCX', if_true: files('tcx.c'))
 system_ss.add(when: 'CONFIG_CG3', if_true: files('cg3.c'))
 system_ss.add(when: 'CONFIG_MACFB', if_true: files('macfb.c'))
 system_ss.add(when: 'CONFIG_NEXTCUBE', if_true: files('next-fb.c'))
-system_ss.add(when: 'CONFIG_ESP_RGB', if_true: files('esp_rgb.c'))
+system_ss.add(when: 'CONFIG_RISCV_ESP32C3', if_true: files('esp_rgb.c'))
 
 system_ss.add(when: 'CONFIG_VGA', if_true: files('vga.c'))
 system_ss.add(when: 'CONFIG_VIRTIO', if_true: files('virtio-dmabuf.c'))

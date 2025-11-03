@@ -14,7 +14,7 @@
 #include "hw/hw.h"
 #include "hw/sysbus.h"
 #include "hw/registerfields.h"
-#include "hw/nvram/esp32c3_efuse.h"
+#include "hw/nvram/esp32s3_efuse.h"
 #include "hw/xtensa/esp32s3_clk.h"
 
 #define TYPE_ESP32S3_XTS_AES "misc.esp32s3.xts_aes"

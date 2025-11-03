@@ -137,9 +137,9 @@ config XLNX_DISPLAYPORT
     bool
     # defaults to "N", enabled by specific boards
     depends on PIXMAN
-
-config DM163
+    
+config ST7789V
     bool
 
-config ESP_RGB
+config RGB_LED
     bool

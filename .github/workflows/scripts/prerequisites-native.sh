@@ -14,10 +14,12 @@ apt-get install -y -q --no-install-recommends \
     libsdl2-dev \
     libslirp-dev \
     ninja-build \
+    libgtk-3-dev \
     python3-pip \
+    libvte-2.91-dev \
     wget \
     zlib1g-dev \
 && :
 
-# Even though ./configure installs meson, just specify a version
-/usr/bin/pip3 install meson==1.7.0 tomli==2.2.1
+# Even though ./configure installs meason, just specify a version
+#/usr/bin/pip3 install meson==1.2.3

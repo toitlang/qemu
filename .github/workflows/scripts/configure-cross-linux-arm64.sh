@@ -12,13 +12,15 @@ echo DBG
 ./configure --help
 
 ./configure \
-    --bindir=bin \
+    --bindir=xtensa-softmmu \
     --cross-prefix=aarch64-linux-gnu- \
     --datadir=share/qemu \
     --enable-gcrypt \
     --enable-sdl \
     --enable-pixman \
     --enable-slirp \
+    --enable-strip \
+    --disable-opengl \
     --enable-stack-protector \
     --extra-cflags=-Werror \
     --prefix=${PWD}/install/qemu \

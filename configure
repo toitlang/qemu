@@ -322,8 +322,6 @@ windmc="${WINDMC-${cross_prefix}windmc}"
 pkg_config="${PKG_CONFIG-${cross_prefix}pkg-config}"
 sdl2_config="${SDL2_CONFIG-${cross_prefix}sdl2-config}"
 
-rustc="${RUSTC-rustc}"
-
 check_define() {
 cat > $TMPC <<EOF
 #if !defined($1)

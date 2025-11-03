@@ -12,11 +12,18 @@
 #include "hw/misc/esp32_sha.h"
 #include "hw/misc/esp32_aes.h"
 #include "hw/misc/esp32_ledc.h"
+#include "hw/misc/esp32_mcpwm.h"
 #include "hw/misc/esp32_rsa.h"
 #include "hw/timer/esp32_frc_timer.h"
 #include "hw/timer/esp32_timg.h"
 #include "hw/misc/esp32_crosscore_int.h"
 #include "hw/ssi/esp32_spi.h"
+#include "hw/misc/esp32_sens.h"
+#include "hw/misc/esp32_ana.h"
+#include "hw/ssi/esp32_rmt.h"
+#include "hw/misc/esp32_wifi.h"
+#include "hw/misc/esp32_fe.h"
+#include "hw/misc/esp32_phya.h"
 #include "hw/i2c/esp32_i2c.h"
 #include "hw/nvram/esp32_efuse.h"
 #include "hw/xtensa/esp32_intc.h"
@@ -47,12 +54,21 @@ typedef struct Esp32SocState {
     Esp32AesState aes;
     Esp32RsaState rsa;
     Esp32LEDCState ledc;
+    Esp32McpwmState mcpwm0;
+    Esp32McpwmState mcpwm1;
     Esp32EfuseState efuse;
+    Esp32SensState sens;
+    Esp32AnaState ana;
+    Esp32RmtState rmt;
+    Esp32WifiState wifi;
+    Esp32FeState fe;
+    Esp32PhyaState phya;
     Esp32FlashEncryptionState flash_enc;
     ESPRgbState rgb;
 
     DWCSDMMCState sdmmc;
     DeviceState *eth;
+    DeviceState *wifi_dev;
 
     BusState rtc_bus;
     BusState periph_bus;

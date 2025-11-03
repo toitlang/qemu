@@ -1,3 +1,4 @@
+
 /*
  * ESP-PSRAM basic emulation
  *
@@ -47,8 +48,8 @@ typedef enum PsramCMD {
 
 /* If the manufacturer ID is 0xd, all the 8MB PSRAMs are in fact 4MB underneath
  * So use another manufacturer ID. */
-#define PSRAM_ID_MFG 0xff
-#define PSRAM_ID_KGD 0x5d
+#define PSRAM_ID_MFG 0x0d
+#define PSRAM_ID_KGD 0xdd
 
 #define MR0_GET_RD_LATENCY(v)       (((v) >> 2) & 0x7)
 
@@ -91,9 +92,9 @@ static int get_eid_by_size(uint32_t size_mbytes) {
     switch (size_mbytes)
     {
     case 2:
-        return 0x00;
+        return 0x01;
     case 4:
-        return 0x21;
+        return 0x01;
     case 8:
         return 0x40;
     case 16:
@@ -243,17 +244,14 @@ static uint32_t psram_quad_read(SsiPsramState *s)
         const int index = s->byte_count;
         if (index < ARRAY_SIZE(read_id_response)) {
             result = read_id_response[index];
+        } else if (s->state == ST_PROCESSING && psram_is_read_command(s)) {
+            result = psram_read_data(s, s->byte_count++);
         }
-    } else if (s->state == ST_PROCESSING && psram_is_read_command(s)) {
-        result = psram_read_data(s, s->byte_count++);
     }
     return result;
 }
 
-
-
-static bool psram_octal_supported_commands(uint32_t command)
-{
+static bool psram_octal_supported_commands(uint32_t command) {
     switch (command) {
         case OCT_READ_REG:
         case OCT_WRITE_REG:
@@ -266,7 +264,6 @@ static bool psram_octal_supported_commands(uint32_t command)
             return false;
     }
 }
-
 
 static uint32_t psram_octal_read(SsiPsramState *s)
 {
@@ -298,12 +295,11 @@ static uint32_t psram_octal_read(SsiPsramState *s)
             break;
         }
         s->byte_count++;
-    } else if (s->state == ST_PROCESSING && psram_is_read_command(s)) {
-        result = psram_read_data(s, s->byte_count++);
+     } else if (s->state == ST_PROCESSING && psram_is_read_command(s)) {
+       result = psram_read_data(s, s->byte_count++);
     }
     return result;
 }
-
 
 static PsramState psram_octal_write(SsiPsramState *s, uint32_t value)
 {
@@ -425,7 +421,6 @@ static int psram_octal_get_density(uint32_t size_mbytes)
     return density & MR2_DENSITY_MASK;
 }
 
-
 static uint32_t psram_transfer(SSIPeripheral *dev, uint32_t value)
 {
     SsiPsramState *s = SSI_PSRAM(dev);
@@ -445,10 +440,9 @@ static uint32_t psram_transfer(SSIPeripheral *dev, uint32_t value)
     return data;
 }
 
-static int psram_cs(SSIPeripheral *ss, bool select)
+static int psram_cs(SSIPeripheral *ss, bool select) 
 {
     SsiPsramState *s = SSI_PSRAM(ss);
-
     if (!select) {
         /* If data were written to the cache via the MemoryRegion, we need to
          * mark the area as dirty since the ESP target's `cache` also uses it. */

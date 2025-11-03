@@ -144,8 +144,37 @@ system_ss.add(when: 'CONFIG_XTENSA_ESP32', if_true: files(
   'esp32_sha.c',
   'esp32_aes.c',
   'esp32_ledc.c',
+  'servo.c',
+  'esp32_mcpwm.c',
+  'esp32_sens.c',
+  'esp32_ana.c',
+  'esp32_wifi.c',
+  'esp32_fe.c',
+  'esp32_phya.c',
+  'esp32_wifi_ap.c',
+  'esp32_wlan_packet.c',
   'esp32_flash_enc.c',
   'ssi_psram.c'
+))
+
+system_ss.add(when: 'CONFIG_RISCV_ESP32C3', if_true: files(
+  'esp32c3_cache.c',
+  'esp_sha.c',
+  'esp32c3_sha.c',
+  'esp32c3_jtag.c',
+  'esp32c3_rtc_cntl.c',
+  'esp_hmac.c',
+  'esp32c3_hmac.c'
+))
+
+system_ss.add(when: 'CONFIG_XTENSA_ESP32S3', if_true: files(
+  'esp32s3_cache.c',
+  'esp32s3_sha.c',
+  'esp32c3_jtag.c',
+  'esp32s3_rtc_cntl.c',
+  'esp32s3_rng.c',
+  'esp_hmac.c',
+  'esp32s3_hmac.c'
 ))
 
 system_ss.add(when: 'CONFIG_RISCV_ESP32C3', if_true: files(
@@ -166,9 +195,10 @@ system_ss.add(when: 'CONFIG_XTENSA_ESP32S3', if_true: files(
   'esp32c3_jtag.c',
   'esp32s3_rtc_cntl.c',
   'esp32s3_rng.c',
+  'esp32s3_hmac.c',
+  'esp32c3_ledc.c',
+  'esp32s3_sens.c',
   'esp32s3_pms.c',
-  'esp_hmac.c',
-  'esp32s3_hmac.c'
 ))
 
 if gcrypt.found()

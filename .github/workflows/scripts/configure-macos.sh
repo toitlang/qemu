@@ -14,12 +14,14 @@ echo DBG
 ./configure --help
 
 ./configure \
-    --bindir=bin \
+    --bindir=xtensa-softmmu \
     --datadir=share/qemu \
     --enable-fdt=internal \
     --enable-gcrypt \
-    --enable-sdl \
-    --enable-pixman \
+    --enable-cocoa \
+    --disable-gtk \
+    --disable-sdl \
+    --enable-strip \
     --enable-slirp \
     --enable-stack-protector \
     --prefix=$PWD/install/qemu \

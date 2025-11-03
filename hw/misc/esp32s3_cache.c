@@ -24,6 +24,7 @@
 #include "hw/misc/esp32s3_xts_aes.h"
 #include "sysemu/block-backend-io.h"
 #include "hw/misc/esp32s3_reg.h"
+#include "exec/address-spaces.h"
 
 
 #define CACHE_DEBUG      0
@@ -104,6 +105,15 @@ static inline void esp32s3_write_mmu_value(ESP32S3CacheState *s, hwaddr reg_addr
         esp32s3_mmu_invalidate_page(s, virtaddr, former_physaddr, former.type == ESP32S3_MMU_TYPE_PSRAM, e.invalid);
 
         if (!e.invalid) {
+          /*  if(e.type==ESP32S3_MMU_TYPE_PSRAM) {
+                printf("[CACHE] psram physical_address=%8.8x, virtual_address=%8.8x\n", physical_address, virtaddr);
+             //   MemoryRegion *block = g_new(MemoryRegion, 1);
+             //   memory_region_init_alias(block, OBJECT(s), "psram",  &s->psram->data_mr,physical_address, 64*1024);
+             //   printf("[CACHE] alias\n");
+             //   memory_region_add_subregion_overlap(get_system_memory(), 0x3c000000+virtaddr, block,1);
+             //   printf("[CACHE] done\n");
+            } else
+             */
             if (e.type == ESP32S3_MMU_TYPE_FLASH && s->flash_blk != NULL) {
                 uint8_t* cache_data = ((uint8_t*) memory_region_get_ram_ptr(&s->flash_mr)) + physical_address;
                 blk_pread(s->flash_blk, physical_address, ESP32S3_PAGE_SIZE, cache_data, 0);
@@ -311,7 +321,7 @@ static void esp32s3_cache_realize(DeviceState *dev, Error **errp)
         /* Initialize the address space that will contain the flash MemoryRegion */
         address_space_init(&s->flash_as, &s->flash_mr, "esp32s3.cache.flash_as");
     }
-
+ //   printf("cache %px\n",s->psram );
     if (s->psram != NULL) {
         /* Initialize the physical address space for the PSRAM, this will be referenced by the IOMMU. */
         address_space_init(&s->psram_as, &s->psram->data_mr, "esp32s3.cache.psram_as");

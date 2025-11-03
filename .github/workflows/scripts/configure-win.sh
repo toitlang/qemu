@@ -9,16 +9,18 @@ echo DBG
 ./configure --help
 
 ./configure \
-    --bindir=bin \
+    --bindir=xtensa-softmmu \
     --datadir=share/qemu \
     --enable-gcrypt \
-    --enable-sdl \
+    --enable-iconv \
+    --enable-gtk \
     --enable-pixman \
+    --disable-sdl \
+    --enable-strip \
     --enable-slirp \
     --enable-stack-protector \
     --extra-cflags=-Werror \
     --prefix=${PWD}/install/qemu \
-    --static \
     --target-list=${TARGET} \
     --with-pkgversion="${VERSION}" \
     --with-suffix="" \

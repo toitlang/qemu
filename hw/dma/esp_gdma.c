@@ -131,7 +131,7 @@ static void esp_gdma_write_int_state(DmaIntState* state, DmaRegister reg, uint32
 static void esp_gdma_reset_fifo(DmaConfigState* s)
 {
 #if GDMA_DEBUG
-    info_report("Resetting FIFO for chan %d, direction: %d", chan, in_out);
+//    info_report("Resetting FIFO for chan %d, direction: %d", chan, in_out);
 #endif
     /* Set the FIFO empty bit to 1, full bit to 0, and number of bytes of data to 0 */
     s->status = R_GDMA_INFIFO_STATUS_FIFO_EMPTY_MASK;
@@ -307,10 +307,11 @@ bool esp_gdma_read_channel(ESPGdmaState *s, uint32_t chan, uint8_t* buffer, uint
     uint32_t out_addr = ((ESP_GDMA_RAM_ADDR >> 20) << 20) | FIELD_EX32(state->link, GDMA_OUT_LINK, ADDR);
 
     /* Boolean to mark whether we need to check the owner for in and out buffers */
-    const bool owner_check_out = FIELD_EX32(state[ESP_GDMA_OUT_IDX].conf1, GDMA_OUT_CONF1, CHECK_OWNER);
+    /* Should be: FIELD_EX32(state->conf1, GDMA_OUT_CONF1, CHECK_OWNER); but doesn't actually work*/
+    const bool owner_check_out = 0;
 
     /* Boolean to mark whether the transmit (out) buffers must have their owner bit cleared here */
-    const bool clear_out = FIELD_EX32(state[ESP_GDMA_OUT_IDX].conf0, GDMA_OUT_CONF0, AUTO_WRBACK);
+    const bool clear_out = FIELD_EX32(state->conf0, GDMA_OUT_CONF0, AUTO_WRBACK);
 
     /* Pointer to the lists that will be browsed by the loop below */
     GdmaLinkedList out_list;
@@ -325,7 +326,7 @@ bool esp_gdma_read_channel(ESPGdmaState *s, uint32_t chan, uint8_t* buffer, uint
     /* Check that the address is valid. If the owner must be checked, make sure owner is the DMA controller.
      * On the real hardware, both in and out are checked at the same time, so in case of an error, both bits
      * are set. Replicate the same behavior here. */
-    if ( !valid || (owner_check_out && !out_list.config.owner) ) {
+    if ( !valid || (owner_check_out && !out_list.config.owner ) ) {
         esp_gdma_set_status(&state->int_state, R_GDMA_INTERRUPT_OUT_DSCR_ERR_MASK);
         return false;
     }
@@ -354,13 +355,11 @@ bool esp_gdma_read_channel(ESPGdmaState *s, uint32_t chan, uint8_t* buffer, uint
 
         /* If we reached the end of the TX descriptor, we can jump to the next buffer */
         if (min == out_list.config.length) {
-
             /* Before jumping to the next node, clear the owner bit if needed */
             if (clear_out) {
                 out_list.config.owner = 0;
-
                 /* Write back the modified descriptor, should always be valid */
-                valid = esp_gdma_read_descr(s, out_addr, &out_list);
+                valid = esp_gdma_write_descr(s, out_addr, &out_list);
                 assert(valid);
             }
 
@@ -382,6 +381,7 @@ bool esp_gdma_read_channel(ESPGdmaState *s, uint32_t chan, uint8_t* buffer, uint
                 esp_gdma_set_status(&state->int_state, R_GDMA_INTERRUPT_OUT_EOF_MASK |
                                                        R_GDMA_INTERRUPT_OUT_TOTAL_EOF_MASK);
             }
+
         }
     }
 
@@ -926,6 +926,21 @@ uint64_t esp_gdma_read_register(ESPGdmaState* s, DmaRegister reg)
     }
 
     return r;
+}
+
+int esp_gdma_get_transfer_size(ESPGdmaState *s, uint32_t chan) {
+    DmaConfigState* state = &s->ch_conf[ESP_GDMA_OUT_IDX][chan];
+    GdmaLinkedList out_list;
+    uint32_t total=0;
+    state->link &= R_GDMA_OUT_LINK_ADDR_MASK;
+    uint32_t out_addr = ((ESP_GDMA_RAM_ADDR >> 20) << 20) | FIELD_EX32(state->link, GDMA_OUT_LINK, ADDR);
+    esp_gdma_read_descr(s, out_addr, &out_list);
+    total+=out_list.config.length;
+    while(!out_list.config.suc_eof && out_list.config.length!=0) {
+        esp_gdma_next_list_node(s, chan, ESP_GDMA_OUT_IDX, &out_list);
+        total+=out_list.config.length;
+    }
+    return total;
 }
 
 

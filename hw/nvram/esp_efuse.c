@@ -322,9 +322,13 @@ static uint64_t esp_efuse_read(void *opaque, hwaddr addr, unsigned int size)
 {
     ESPEfuseState *s = ESP_EFUSE(opaque);
 
+
 #if EFUSE_DEBUG
     info_report("[EFUSE] Reading 0x%08lx (size: %d)", addr, size);
 #endif
+    if(addr==0x44) return 0x00c40a24;//0xC4000110;
+    if(addr==0x48) return 0xfe1001;//0xfe240A;
+    
 
     /* Check if the programming cmd block is being written */
     if (addr <= A_EFUSE_RD_SYS_PART2_DATA7_REG) {
@@ -335,6 +339,10 @@ static uint64_t esp_efuse_read(void *opaque, hwaddr addr, unsigned int size)
             /* If the read is done on an efuse block, change the base */
             base = ((uint8_t*) (&s->efuses.blocks.rd_wr_dis)) + addr - A_EFUSE_RD_WR_DIS_REG;
         }
+#if EFUSE_DEBUG
+    info_report("[EFUSE] val=%x\n", *((uint32_t*) base));
+#endif
+
 
         if (size == 1) {
             return *((uint8_t*) base);
@@ -592,6 +600,14 @@ static void esp_efuse_realize(DeviceState *dev, Error **errp)
             goto error;
         }
         memset(s->mirror, 0, size);
+        /* Set the chip revision to v0.3 and write it to the file */
+        s->efuses.blocks.rd_mac_spi_sys_3 = 0x030c0000;
+
+        /* Set the chip eFuse block revision 1.3 */
+        s->efuses.blocks.rd_sys_part1_data4 = 0x1;
+
+        memcpy(s->mirror, &s->efuses.blocks, sizeof(ESPEfuseBlocks));
+
     } else {
         /* A block was given as a parameter, open it in READ/WRITE */
         if (!blk_supports_write_perm(s->blk)) {

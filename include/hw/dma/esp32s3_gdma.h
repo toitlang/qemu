@@ -67,6 +67,9 @@ REG32(DMA_DUMMY_3C,      0x03c)
 REG32(DMA_DUMMY_40,      0x040)
 REG32(DMA_PRIORITY,      0x044)
 REG32(DMA_PERI_SEL,      0x048)
+REG32(DMA_OUT_LINK,      0x080)
+//FIELD(DMA_INT_RAW, INFIFO_FULL_WM, 5, 1)
+FIELD(DMA_OUT_LINK, ADDR, 0, 20)
 
 /**
  * @brief Bitfields for the interrupt registers
