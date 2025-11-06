@@ -30,5 +30,5 @@ echo DBG
 
 # This fixes the issue that for some reason, meson is not able to determine correct
 # paths for libiconv and libintl libraries from 'pkg-config --libs --static libgcrypt'.
-MSYS_BASE=$(cygpath -w / | sed 's/\\/\//g')
-sed -i "s|/mingw64/lib/libintl.dll.a|${MSYS_BASE}/mingw64/lib/libintl.dll.a|g; s|/mingw64/lib/libiconv.dll.a|${MSYS_BASE}/mingw64/lib/libiconv.dll.a|g" build/build.ninja
+# MSYS_BASE=$(cygpath -w / | sed 's/\\/\//g')
+# sed -i "s|/mingw64/lib/libintl.dll.a|${MSYS_BASE}/mingw64/lib/libintl.dll.a|g; s|/mingw64/lib/libiconv.dll.a|${MSYS_BASE}/mingw64/lib/libiconv.dll.a|g" build/build.ninja
