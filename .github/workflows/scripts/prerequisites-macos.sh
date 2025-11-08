@@ -3,14 +3,8 @@
 set -euo pipefail
 
 brew install \
-  glib \
-  libgcrypt \
   libslirp \
-  ninja \
-  pixman \
-  pkg-config \
   sdl2 \
-  vte3 \
 && :
 
 # workaround if deprecated module 'distutils.version' is missing
