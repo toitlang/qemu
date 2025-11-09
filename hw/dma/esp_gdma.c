@@ -307,8 +307,7 @@ bool esp_gdma_read_channel(ESPGdmaState *s, uint32_t chan, uint8_t* buffer, uint
     uint32_t out_addr = ((ESP_GDMA_RAM_ADDR >> 20) << 20) | FIELD_EX32(state->link, GDMA_OUT_LINK, ADDR);
 
     /* Boolean to mark whether we need to check the owner for in and out buffers */
-    /* Should be: FIELD_EX32(state->conf1, GDMA_OUT_CONF1, CHECK_OWNER); but doesn't actually work*/
-    const bool owner_check_out = 0;
+    const bool owner_check_out = FIELD_EX32(state->conf1, GDMA_OUT_CONF1, CHECK_OWNER);
 
     /* Boolean to mark whether the transmit (out) buffers must have their owner bit cleared here */
     const bool clear_out = FIELD_EX32(state->conf0, GDMA_OUT_CONF0, AUTO_WRBACK);
@@ -928,7 +927,7 @@ uint64_t esp_gdma_read_register(ESPGdmaState* s, DmaRegister reg)
     return r;
 }
 
-int esp_gdma_get_transfer_size(ESPGdmaState *s, uint32_t chan) {
+uint32_t esp_gdma_get_transfer_size(ESPGdmaState *s, uint32_t chan) {
     DmaConfigState* state = &s->ch_conf[ESP_GDMA_OUT_IDX][chan];
     GdmaLinkedList out_list;
     uint32_t total=0;
@@ -936,7 +935,8 @@ int esp_gdma_get_transfer_size(ESPGdmaState *s, uint32_t chan) {
     uint32_t out_addr = ((ESP_GDMA_RAM_ADDR >> 20) << 20) | FIELD_EX32(state->link, GDMA_OUT_LINK, ADDR);
     esp_gdma_read_descr(s, out_addr, &out_list);
     total+=out_list.config.length;
-    while(!out_list.config.suc_eof && out_list.config.length!=0) {
+    while(!out_list.config.suc_eof) {
+        out_addr = out_list.next_addr;
         esp_gdma_next_list_node(s, chan, ESP_GDMA_OUT_IDX, &out_list);
         total+=out_list.config.length;
     }
