@@ -197,32 +197,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: dist-qemu-*
-          path: install/qemu
-
-      - name: Create a checksum file
-        env:
-          RELEASE_CHECKSUM_FILE: ${{ steps.create-source.outputs.RELEASE_CHECKSUM_FILE }}
-          RELEASE_SRC_FILE: ${{ steps.create-source.outputs.RELEASE_SRC_FILE }}
-        run: |
-          ls -l
-          DIST_FILE_LIST=$(find . -name file_\* -exec cat {} \+)
-          DIST_FILE_LIST="${DIST_FILE_LIST} ${RELEASE_SRC_FILE}"
-          RELEASE_CHECKSUM_FILE=$(realpath "${RELEASE_CHECKSUM_FILE}")
-          for n in $DIST_FILE_LIST; do
-            # Release archives might be in subdirectories, but we need just the file names in the checksum file
-            n_dir=$(dirname "${n}")
-            n_file=$(basename "${n}")
-            pushd "${n_dir}" > /dev/null
-            sz=$(stat -c%s "${n_file}")
-            printf "# %s: %s bytes\n" "${n_file}" "${sz}" >> "${RELEASE_CHECKSUM_FILE}"
-            sha256sum -b "${n_file}" >> "${RELEASE_CHECKSUM_FILE}"
-            popd > /dev/null
-          done
-          DIST_FILE_LIST="${DIST_FILE_LIST} ${RELEASE_CHECKSUM_FILE}"
-          # remove new lines from file list
-          DIST_FILE_LIST="${DIST_FILE_LIST//$'\n'/ }"
-          cat "${RELEASE_CHECKSUM_FILE}"
-          rm -rf -- upload && mkdir -p upload && mv -v ${DIST_FILE_LIST} upload/
+          path: upload
 
       - name: Release
         uses: softprops/action-gh-release@v1
