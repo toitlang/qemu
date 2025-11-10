@@ -196,7 +196,8 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: dist-qemu-${{ matrix.target }}-${{ matrix.platform }}
+          pattern: dist-qemu-*
+          path: install/qemu
 
       - name: Create a checksum file
         env:
