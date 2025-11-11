@@ -197,7 +197,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: dist-qemu-*
-          path: install/qemu
+          path: artifacts
 
       - name: Create a checksum file
         env:
@@ -225,7 +225,7 @@ jobs:
           rm -rf -- upload && mkdir -p upload && mv -v ${DIST_FILE_LIST} upload/
 
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           draft: true
-          files: upload/*
+          files: artifacts/**/*
