@@ -137,6 +137,15 @@ jobs:
           otool -L *.dylib | grep "/opt/homebrew\|/usr/local/opt"  | cut -f 1 -d " " | xargs -Ixxx  cp -n xxx . || true
           otool -L *.dylib | grep "/opt/homebrew\|/usr/local/opt"  | cut -f 1 -d " " | xargs -Ixxx  cp -n xxx . || true
 
+      - name: Package Windows DLLs (${{ matrix.target }} @ ${{ matrix.platform }})
+        if : ${{ matrix.platform == 'x86_64-w64-mingw32'}}
+        run: |
+          cd $PWD/install/qemu/xtensa-softmmu
+          ls -l
+          ldd qemu-system-xtensa
+          ldd qemu-system-xtensa | cut -f 3 -d " " | xargs -Ixxx  cp -n xxx .
+          ls -l
+
       - name: Package (${{ matrix.target }} @ ${{ matrix.platform }})
         env:
           VERSION: ${{ needs.Vars.outputs.VERSION }}
