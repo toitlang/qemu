@@ -149,8 +149,8 @@ jobs:
           mkdir -p ${DIST_DIR}
           cd $PWD/install
           mv qemu/share/qemu qemu/share/qemu-firmware
-          ARCHIVE_NAME=${PROJECT_NAME}-${TARGET}-${VERSION}-${PLATFORM}.tar.xz
-          tar -cJvf ${DIST_DIR}/${ARCHIVE_NAME} qemu
+          ARCHIVE_NAME=${PROJECT_NAME}-${TARGET}-${VERSION}-${PLATFORM}.tar.gz
+          tar -czvf ${DIST_DIR}/${ARCHIVE_NAME} qemu
 
 
       - name: Dist artifacts (${{ matrix.target }} @ ${{ matrix.platform }})
@@ -159,7 +159,7 @@ jobs:
           # TODO split artifacts for tests
           name: dist-qemu-${{ matrix.target }}-${{ matrix.platform }}
           path: |
-            install/qemu
+            dist/*.tar.gz
 
   Upload:
     if: startsWith(github.ref, 'refs/tags/')
