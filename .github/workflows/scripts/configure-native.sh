@@ -31,5 +31,6 @@ echo DBG
     --target-list=${TARGET} \
     --with-pkgversion="${VERSION}" \
     --with-suffix="" \
+    --enable-fdt=disabled \
     --without-default-features \
 || { cat meson-logs/meson-log.txt && false; }
