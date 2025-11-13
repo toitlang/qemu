@@ -143,7 +143,7 @@ jobs:
           cd $PWD/install/qemu/xtensa-softmmu
           ls -l
           ldd qemu-system-xtensa
-          ldd qemu-system-xtensa | cut -f 3 -d " " | xargs -Ixxx  cp -n xxx .
+          ldd qemu-system-xtensa | grep "/mingw64/bin/" | cut -f 3 -d " " | xargs -Ixxx  cp -n xxx .
           ls -l
 
       - name: Package (${{ matrix.target }} @ ${{ matrix.platform }})
