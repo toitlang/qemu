@@ -71,12 +71,10 @@ static void esp32s3_lcd_write(void *opaque, hwaddr addr,
 #endif
     switch(addr) {
         case A_LCD_CAM_LCD_USER:
-            const bool start=FIELD_EX32(wvalue, LCD_CAM_LCD_USER, START);
-            const bool send_cmd=FIELD_EX32(wvalue, LCD_CAM_LCD_USER, CMD);
-            const bool send_data=FIELD_EX32(wvalue, LCD_CAM_LCD_USER, DOUT);
-            if(start) {
+            if(FIELD_EX32(wvalue, LCD_CAM_LCD_USER, START)) {
+                const bool send_cmd=FIELD_EX32(wvalue, LCD_CAM_LCD_USER, CMD);
+                const bool send_data=FIELD_EX32(wvalue, LCD_CAM_LCD_USER, DOUT);
                 wvalue=FIELD_DP32(wvalue,LCD_CAM_LCD_USER,START,0);
-                
                 uint64_t ns_now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
 #if LCD_DEBUG
     info_report("[LCD_CAM] GDMA start %d %d",send_cmd,send_data);
