@@ -16,11 +16,11 @@ typedef struct Esp32S3RmtState {
     qemu_irq irq;
     int num_cs;
     SSIBus *rmt;
-    uint32_t conf0[8];
-   // uint32_t conf1[8];
+    long start_time;
+    uint32_t conf0[4];
     uint32_t int_raw;
     uint32_t int_en;
-    uint32_t txlim[8];
+    uint32_t txlim[4];
     uint32_t apb_conf;
     int sent;
     bool unsent_data;
@@ -30,6 +30,10 @@ typedef struct Esp32S3RmtState {
 
 
 REG32(RMT_CH0CONF0, 0x20)
+    FIELD(RMT_CONF0,DIV_CNT,8,8);
+    FIELD(RMT_CONF0,MEM_SIZE,16,4);
+    FIELD(RMT_CONF0,TX_START,0,1);
+    FIELD(RMT_CONF0,MEM_RD_RESET,1,1);
 REG32(RMT_CH1CONF0, 0x24)
 REG32(RMT_CH2CONF0, 0x28)
 REG32(RMT_CH3CONF0, 0x2c)
@@ -47,8 +51,9 @@ REG32(RMT_INT_ENA, 0x78)
 REG32(RMT_INT_CLR, 0x7c)
 REG32(RMT_DATA, 0x800)
 REG32(RMT_CH0_TX_LIM,0xa0)
+    FIELD(RMT_TX_LIM,TX_LIM,0,9);
 REG32(RMT_CH1_TX_LIM,0xa4)
-REG32(RMT_CH2_TX_LIM,0xa5)
+REG32(RMT_CH2_TX_LIM,0xa8)
 REG32(RMT_CH3_TX_LIM,0xac)
 REG32(RMT_SYS_CONF,0xc0)
 
