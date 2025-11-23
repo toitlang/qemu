@@ -23,8 +23,9 @@ typedef struct Esp32RmtState {
     uint32_t int_en;
     uint32_t txlim[8];
     uint32_t apb_conf;
+    uint32_t blocks_unsent;
     int sent;
-    bool unsent_data;
+    bool end_marker;
     uint32_t data[ESP32_RMT_BUF_WORDS];
     QEMUTimer rmt_timer;
 } Esp32RmtState;

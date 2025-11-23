@@ -60,10 +60,7 @@ static void send_data(Esp32S3RmtState *s, int channel) {
                 timer_mod_ns(&s->rmt_timer,s->start_time+1300*s->sent);
                 return;            
             }
-            if(i<tx_lim) {
-              ssc->transfer(slave,v);
-            }
-            
+            ssc->transfer(slave,v);
         }
         s->sent+=tx_lim;
         interrupts++;
@@ -72,8 +69,9 @@ static void send_data(Esp32S3RmtState *s, int channel) {
     if(interrupts>0) {
         s->int_raw|=(1<<(channel+8));
         if(s->int_en & (1<<(channel+8))) {
-            qemu_irq_raise(s->irq);        
+            qemu_irq_raise(s->irq);
         }
+        // first block needs to generate 2 threashold interrupts so we schedule one for later.
         if(interrupts>1) {
             timer_mod_ns(&s->rmt_timer,qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)+20000000);
         }
@@ -117,8 +115,6 @@ static void send_unsent_data(Esp32S3RmtState *s) {
          }
      }
 }
-     
-     
 
 static uint64_t esp32_rmt_read(void *opaque, hwaddr addr, unsigned int size)
 {
