@@ -22,12 +22,12 @@
 
 #define ESP32S3_RMT_REG_SIZE    0x1000
 
-#define DEBUG(x) x
+#define DEBUG(x) 
 
 // send txlim data values, stop if a value is 0
 // set the correct raw int for tx_end or tx_thr_event
 static void send_data(Esp32S3RmtState *s, int channel) {
-    DEBUG(printf("send %d %d %d\n",channel, s->txlim[channel]&0x1ff, s->sent);)
+    DEBUG(printf("send %d %d %d %d\n",channel, s->txlim[channel]&0x1ff, s->sent,s->blocks_unsent);)
     BusState *b = BUS(s->rmt);
     BusChild *ch = QTAILQ_FIRST(&b->children);
     SSIPeripheral *slave = SSI_PERIPHERAL(ch->child);
@@ -36,24 +36,16 @@ static void send_data(Esp32S3RmtState *s, int channel) {
         s->end_marker=false;
         s->start_time=qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
     }
-  //  while(1) {
-        /*
-        // don't send data when interrupt hasn't been handled
-        // a real device can't do this but it's necessary because 
-        // qemu can't always keep up.
-        if( s->int_raw & s->int_en & (1<<(channel+8) | (1<<channel))) {
-            // send data when the interrupt is cleared
-            s->unsent_data=true;
-            return;
-        } else 
-            s->unsent_data=false;
-*/
+    if(s->blocks_unsent==0) return;
+    int interrupts=0;
+    while(s->blocks_unsent>0) {
         int memsize=FIELD_EX32(s->conf0[channel],RMT_CONF0,MEM_SIZE)*48;
         int divcnt=FIELD_EX32(s->conf0[channel],RMT_CONF0,DIV_CNT);
         int tx_lim=FIELD_EX32(s->txlim[channel],RMT_TX_LIM,TX_LIM);
-        if(s->sent==0) tx_lim=memsize;
+        s->blocks_unsent--;
 
         DEBUG(printf("Send divcnt %d memsize %d start %x\n",divcnt,memsize, s->sent%memsize+channel*48);)
+    
         for (int i = 0; i < tx_lim ; i++) {    
             int v=s->data[((i+s->sent)%memsize+channel*48)%512];
             // adjust periods based on the divider
@@ -73,16 +65,19 @@ static void send_data(Esp32S3RmtState *s, int channel) {
             }
             
         }
-        
         s->sent+=tx_lim;
-        
-        s->int_raw|=(1<<(channel+8));
-        if(s->int_en & (1<<(channel+8)))
-            qemu_irq_raise(s->irq);
-            
-        //   timer_mod_ns(&s->rmt_timer,qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)+1000000);
+        interrupts++;
         DEBUG(printf("sent %x %x\n",s->int_en,s->int_raw );)
-    //}
+    }
+    if(interrupts>0) {
+        s->int_raw|=(1<<(channel+8));
+        if(s->int_en & (1<<(channel+8))) {
+            qemu_irq_raise(s->irq);        
+        }
+        if(interrupts>1) {
+            timer_mod_ns(&s->rmt_timer,qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)+20000000);
+        }
+    }
 }
 
 static void esp32_rmt_timer_cb(void *opaque) {
@@ -92,7 +87,7 @@ static void esp32_rmt_timer_cb(void *opaque) {
         for(int channel=0;channel<4;channel++) {
             if(FIELD_EX32(s->conf0[channel],RMT_CONF0,TX_START)) {
                 s->int_raw|=(1<<(channel)) | (1<<(channel+8));
-    //            s->int_raw&=~(1<<(channel+8));
+                s->int_raw&=~(1<<(channel+8));
                 s->sent=0;
                 s->end_marker=false;
                 s->conf0[channel] = FIELD_DP32(s->conf0[channel],RMT_CONF0,TX_START,0);
@@ -108,13 +103,11 @@ static void esp32_rmt_timer_cb(void *opaque) {
                 s->int_raw|=(1<<(channel+8));
                 if(s->int_en & (1<<(channel+8)))
                     qemu_irq_raise(s->irq);
-                //send_data(s,channel);
             }
         }
-        
     }
 }
-/*
+
 static void send_unsent_data(Esp32S3RmtState *s) {
      // send data for any enabled channels 
      DEBUG(printf("Send unsent\n");)
@@ -124,7 +117,7 @@ static void send_unsent_data(Esp32S3RmtState *s) {
          }
      }
 }
-     */
+     
      
 
 static uint64_t esp32_rmt_read(void *opaque, hwaddr addr, unsigned int size)
@@ -174,14 +167,12 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
         s->conf0[channel]=value;
         if(FIELD_EX32(value,RMT_CONF0,MEM_RD_RESET)) {
             s->sent=0;
+            s->blocks_unsent=0;
         }
         if(FIELD_EX32(value,RMT_CONF0,TX_START)) {
             // send data
-          //  send_data(s,channel);
-            s->int_raw|=(1<<(channel+8));
-            if(s->int_en & (1<<(channel+8)))
-                qemu_irq_raise(s->irq);
-            }
+            send_data(s,channel);
+        }
         break;
     case A_RMT_CH0_TX_LIM ... A_RMT_CH3_TX_LIM:
         channel=(addr-A_RMT_CH0_TX_LIM)/4;
@@ -194,30 +185,24 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
             qemu_irq_raise(s->irq);
         else
             qemu_irq_lower(s->irq);
-        //if(s->unsent_data) 
-        //    send_unsent_data(s);
-       // if(value&1) {
-       //     send_data(s,0);
-        //    send_data(s,0);
-       // }
-
         break;
     case A_RMT_INT_CLR:
         s->int_raw&=(~value);
         if((s->int_raw & s->int_en)==0) {
             qemu_irq_lower(s->irq);
-        }
-      //  if(s->unsent_data) 
-       //     send_unsent_data(s);
+        } else
+            qemu_irq_raise(s->irq);
+        send_unsent_data(s);
         break;
     case A_RMT_DATA ... A_RMT_DATA+(ESP32S3_RMT_BUF_WORDS-1)* sizeof(uint32_t):
         int data_addr=(addr-A_RMT_DATA)/sizeof(uint32_t);
         channel=data_addr/96;
         int tx_lim=FIELD_EX32(s->txlim[channel],RMT_TX_LIM,TX_LIM);
         s->data[data_addr]=value;
-        if((data_addr%tx_lim==tx_lim-1 && s->last_data_addr%tx_lim==tx_lim-2) || value==0)
+        if(data_addr%tx_lim==0)
+            s->blocks_unsent++;
+        if(value==0)
             send_data(s,channel);
-        s->last_data_addr=data_addr;
         break;
     case A_RMT_SYS_CONF:
         s->apb_conf=value;
