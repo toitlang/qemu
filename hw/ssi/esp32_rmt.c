@@ -27,7 +27,7 @@
 // send txlim data values, stop if a value is 0
 // set the correct raw int for tx_end or tx_thr_event
 static void send_data(Esp32RmtState *s, int channel) {
-    DEBUG(printf("send %d %d %d\n",channel, s->txlim[channel], s->sent);)
+    DEBUG(printf("send %d %d %d %d\n",channel, s->txlim[channel], s->sent, s->blocks_unsent);)
     BusState *b = BUS(s->rmt);
     BusChild *ch = QTAILQ_FIRST(&b->children); 
     SSIPeripheral *slave = SSI_PERIPHERAL(ch->child);
@@ -85,6 +85,7 @@ static void esp32_rmt_timer_cb(void *opaque) {
                 s->int_raw&=~(1<<(channel+24));
                 s->sent=0;
                 s->end_marker=false;
+                s->blocks_unsent=0;
                 s->conf1[channel] = FIELD_DP32(s->conf1[channel],RMT_CONF1,TX_START,0);
                 if(s->int_en & (1<<(channel*3))) {
                     qemu_irq_raise(s->irq);
@@ -155,7 +156,7 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
 {
     Esp32RmtState *s = ESP32_RMT(opaque);
     DEBUG(if(addr<A_RMT_DATA+0x1000) printf("rmt write %lx %lx\n",addr,value);)
-    int channel;
+    int channel,data_addr;
     switch (addr) {
     case A_RMT_CH0CONF0 ...  (A_RMT_CH0CONF0+8*8)-4:
         channel=(addr-32)/8;
@@ -165,7 +166,7 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
             s->conf1[channel]=value;
             if(FIELD_EX32(value,RMT_CONF1,MEM_RD_RESET)) {
                 s->sent=0;
-                s->blocks_unsent=0;
+               // s->blocks_unsent=0;
             }
             if(FIELD_EX32(value,RMT_CONF1,TX_START)) {
                 send_data(s,channel);
@@ -193,8 +194,8 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
         send_unsent_data(s);
         break;
     case A_RMT_DATA ... A_RMT_DATA+(ESP32_RMT_BUF_WORDS-1)* sizeof(uint32_t):
-        int data_addr=(addr-A_RMT_DATA)/sizeof(uint32_t);
-        channel=data_addr/256;
+        data_addr=(addr-A_RMT_DATA)/sizeof(uint32_t);
+        channel=data_addr/64;
         s->data[data_addr]=value;
         if(data_addr%(s->txlim[channel])==0)
             s->blocks_unsent++;
@@ -225,6 +226,7 @@ static void esp32_rmt_reset(DeviceState *dev)
     for(int i=0;i<8;i++) {
         s->conf0[i]=0;
         s->conf1[i]=0;
+        s->txlim[i]=0x20;
     }
 }
 
@@ -243,6 +245,7 @@ static void esp32_rmt_init(Object *obj)
     sysbus_init_irq(sbd, &s->irq);
     timer_init_ns(&s->rmt_timer, QEMU_CLOCK_VIRTUAL, esp32_rmt_timer_cb, s);
     s->rmt = ssi_create_bus(DEVICE(s), "rmt");
+    esp32_rmt_reset((DeviceState *)s);
 }
 
 static Property esp32_rmt_properties[] = {

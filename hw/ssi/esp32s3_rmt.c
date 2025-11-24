@@ -22,7 +22,7 @@
 
 #define ESP32S3_RMT_REG_SIZE    0x1000
 
-#define DEBUG(x) 
+#define DEBUG(x)
 
 // send txlim data values, stop if a value is 0
 // set the correct raw int for tx_end or tx_thr_event
@@ -88,6 +88,7 @@ static void esp32_rmt_timer_cb(void *opaque) {
                 s->int_raw&=~(1<<(channel+8));
                 s->sent=0;
                 s->end_marker=false;
+                s->blocks_unsent=0;
                 s->conf0[channel] = FIELD_DP32(s->conf0[channel],RMT_CONF0,TX_START,0);
                 if(s->int_en & (1<<channel)) {
                     qemu_irq_raise(s->irq);
@@ -163,7 +164,6 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
         s->conf0[channel]=value;
         if(FIELD_EX32(value,RMT_CONF0,MEM_RD_RESET)) {
             s->sent=0;
-            s->blocks_unsent=0;
         }
         if(FIELD_EX32(value,RMT_CONF0,TX_START)) {
             // send data
@@ -223,7 +223,7 @@ static void esp32_rmt_reset(DeviceState *dev)
     timer_del(&s->rmt_timer);
     for(int i=0;i<4;i++) {
         s->conf0[i]=0;
-        s->txlim[i]=0x80;
+        s->txlim[i]=24;
     }
 }
 
