@@ -1017,7 +1017,6 @@ static void esp32s3_machine_init(MachineState *machine)
     ss->lcd.cmd_gpio=qdev_get_gpio_in_named(disp, "cmd", 0);
 //    qemu_set_irq(qdev_get_gpio_in_named(disp, "backlight", 0),1);
    
-    esp32_machine_init_i2c(ss);
 
 
     qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_GPIOS, 38, qdev_get_gpio_in_named(disp, "backlight", 0));
@@ -1119,6 +1118,8 @@ static void esp32s3_machine_init(MachineState *machine)
 
     ssi_create_peripheral(ss->rmt.rmt, "rgbled");
   }
+    esp32_machine_init_i2c(ss);
+
 
     ServoState *servo=servo_create_simple(OBJECT(ss),"servo");
     qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_GPIOS, 21, qdev_get_gpio_in(DEVICE(servo), 0));
