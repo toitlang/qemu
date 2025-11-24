@@ -157,7 +157,7 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
 {
     Esp32S3RmtState *s = ESP32S3_RMT(opaque);
     DEBUG(if(addr<A_RMT_DATA+0x1000) printf("rmt write %lx %lx\n",addr,value);)
-    int channel;
+    int channel,data_addr;
     switch (addr) {
     case A_RMT_CH0CONF0 ... A_RMT_CH3CONF0:
         channel=(addr-A_RMT_CH0CONF0)/4; 
@@ -191,7 +191,7 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
         send_unsent_data(s);
         break;
     case A_RMT_DATA ... A_RMT_DATA+(ESP32S3_RMT_BUF_WORDS-1)* sizeof(uint32_t):
-        int data_addr=(addr-A_RMT_DATA)/sizeof(uint32_t);
+        data_addr=(addr-A_RMT_DATA)/sizeof(uint32_t);
         channel=data_addr/96;
         int tx_lim=FIELD_EX32(s->txlim[channel],RMT_TX_LIM,TX_LIM);
         s->data[data_addr]=value;
