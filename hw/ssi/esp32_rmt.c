@@ -39,12 +39,12 @@ static void send_data(Esp32RmtState *s, int channel) {
     if(s->blocks_unsent==0) return;
     int interrupts=0;
     while(s->blocks_unsent>0) {
-        int memsize=FIELD_EX32(s->conf0[channel],RMT_CONF0,MEM_SIZE)*64;
+        int memsize=FIELD_EX32(s->conf0[channel],RMT_CONF0,MEM_SIZE)*ESP32_RMT_BLOCK_SIZE;
         int divcnt=FIELD_EX32(s->conf0[channel],RMT_CONF0,DIV_CNT);
         s->blocks_unsent--;
         DEBUG(printf("divcnt %d\n",divcnt);)
         for (int i = 0; i < s->txlim[channel] ; i++) {    
-            int v=s->data[((i+s->sent)%memsize+channel*64)%512];
+            int v=s->data[((i+s->sent)%memsize+channel*ESP32_RMT_BLOCK_SIZE) % ESP32_RMT_BUF_WORDS];
             // adjust periods based on the divider
             int d0=v&0x7fff;
             int d1=(v>>16)&0x7fff;
@@ -153,9 +153,9 @@ static uint64_t esp32_rmt_read(void *opaque, hwaddr addr, unsigned int size)
 // get channel number for an index
 static int get_channel(Esp32RmtState *s,int v) {
     for(int i=0;i<8;i++) {
-        int memsize=FIELD_EX32(s->conf0[i],RMT_CONF0,MEM_SIZE)*64;
-        int start=64*i;
-        int end=(start+memsize)%512;
+        int memsize=FIELD_EX32(s->conf0[i],RMT_CONF0,MEM_SIZE)*ESP32_RMT_BLOCK_SIZE;
+        int start=ESP32_RMT_BLOCK_SIZE*i;
+        int end=(start+memsize)%ESP32_RMT_BUF_WORDS;
         if(end>start && v>=start && v<end) return i;
         if(end<start && (v>=start || v<end)) return i;
     }
@@ -166,7 +166,7 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
                        uint64_t value, unsigned int size)
 {
     Esp32RmtState *s = ESP32_RMT(opaque);
-    DEBUG(if(addr<A_RMT_DATA+0x1000) printf("rmt write %lx %lx\n",addr,value);)
+    DEBUG(if(addr<A_RMT_DATA) printf("rmt write %lx %lx\n",addr,value);)
     int channel,data_addr;
     switch (addr) {
     case A_RMT_CH0CONF0 ...  (A_RMT_CH0CONF0+8*8)-4:

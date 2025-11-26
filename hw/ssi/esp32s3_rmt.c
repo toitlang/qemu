@@ -39,15 +39,15 @@ static void send_data(Esp32S3RmtState *s, int channel) {
     if(s->blocks_unsent==0) return;
     int interrupts=0;
     while(s->blocks_unsent>0) {
-        int memsize=FIELD_EX32(s->conf0[channel],RMT_CONF0,MEM_SIZE)*48;
+        int memsize=FIELD_EX32(s->conf0[channel],RMT_CONF0,MEM_SIZE)*ESP32S3_RMT_BLOCK_SIZE;
         int divcnt=FIELD_EX32(s->conf0[channel],RMT_CONF0,DIV_CNT);
         int tx_lim=FIELD_EX32(s->txlim[channel],RMT_TX_LIM,TX_LIM);
         s->blocks_unsent--;
 
-        DEBUG(printf("Send divcnt %d memsize %d start %x\n",divcnt,memsize, s->sent%memsize+channel*48);)
+        DEBUG(printf("Send divcnt %d memsize %d start %x\n",divcnt,memsize, s->sent%memsize+channel*ESP32S3_RMT_BLOCK_SIZE);)
     
         for (int i = 0; i < tx_lim ; i++) {    
-            int v=s->data[((i+s->sent)%memsize+channel*48)%512];
+            int v=s->data[((i+s->sent)%memsize+channel*ESP32S3_RMT_BLOCK_SIZE)%ESP32S3_RMT_BUF_WORDS];
             // adjust periods based on the divider
             int d0=v&0x7fff;
             int d1=(v>>16)&0x7fff;
@@ -150,6 +150,17 @@ static uint64_t esp32_rmt_read(void *opaque, hwaddr addr, unsigned int size)
     DEBUG(printf("rmt read %lx %lx\n",addr,r);)
     return r;
 }
+// get channel number for an index
+static int get_channel(Esp32S3RmtState *s,int v) {
+    for(int i=0;i<8;i++) {
+        int memsize=FIELD_EX32(s->conf0[i],RMT_CONF0,MEM_SIZE)*ESP32S3_RMT_BLOCK_SIZE;
+        int start=ESP32S3_RMT_BLOCK_SIZE*i;
+        int end=(start+memsize)%ESP32S3_RMT_BUF_WORDS;
+        if(end>start && v>=start && v<end) return i;
+        if(end<start && (v>=start || v<end)) return i;
+    }
+    return 0;
+}
 
 
 static void esp32_rmt_write(void *opaque, hwaddr addr,
@@ -192,7 +203,7 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
         break;
     case A_RMT_DATA ... A_RMT_DATA+(ESP32S3_RMT_BUF_WORDS-1)* sizeof(uint32_t):
         data_addr=(addr-A_RMT_DATA)/sizeof(uint32_t);
-        channel=data_addr/96;
+        channel=get_channel(s,data_addr);
         int tx_lim=FIELD_EX32(s->txlim[channel],RMT_TX_LIM,TX_LIM);
         s->data[data_addr]=value;
         if(data_addr%tx_lim==0)

@@ -7,8 +7,8 @@
 #define TYPE_ESP32_RMT "ssi.esp32.rmt"
 #define ESP32_RMT(obj) OBJECT_CHECK(Esp32RmtState, (obj), TYPE_ESP32_RMT)
 
-#define ESP32_RMT_CS_COUNT      3
 #define ESP32_RMT_BUF_WORDS     512
+#define ESP32_RMT_BLOCK_SIZE    64
 
 typedef struct Esp32RmtState {
     SysBusDevice parent_obj;
