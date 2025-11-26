@@ -150,6 +150,17 @@ static uint64_t esp32_rmt_read(void *opaque, hwaddr addr, unsigned int size)
     return r;
 }
 
+// get channel number for an index
+static int get_channel(Esp32RmtState *s,int v) {
+    for(int i=0;i<8;i++) {
+        int memsize=FIELD_EX32(s->conf0[i],RMT_CONF0,MEM_SIZE)*64;
+        int start=64*i;
+        int end=(start+memsize)%512;
+        if(end>start && v>=start && v<end) return i;
+        if(end<start && (v>=start || v<end)) return i;
+    }
+    return 0;
+}
 
 static void esp32_rmt_write(void *opaque, hwaddr addr,
                        uint64_t value, unsigned int size)
@@ -195,7 +206,7 @@ static void esp32_rmt_write(void *opaque, hwaddr addr,
         break;
     case A_RMT_DATA ... A_RMT_DATA+(ESP32_RMT_BUF_WORDS-1)* sizeof(uint32_t):
         data_addr=(addr-A_RMT_DATA)/sizeof(uint32_t);
-        channel=data_addr/64;
+        channel=get_channel(s,data_addr);
         s->data[data_addr]=value;
         if(data_addr%(s->txlim[channel])==0)
             s->blocks_unsent++;
@@ -224,7 +235,7 @@ static void esp32_rmt_reset(DeviceState *dev)
     qemu_irq_lower(s->irq);
     timer_del(&s->rmt_timer);
     for(int i=0;i<8;i++) {
-        s->conf0[i]=0;
+        s->conf0[i]=0x01000002;
         s->conf1[i]=0;
         s->txlim[i]=0x20;
     }
