@@ -356,9 +356,8 @@ static void esp32_spi_do_command(Esp32SpiState* s, uint32_t cmd_reg)
                     }
                 }
             } while (addr != 0);
-            uint64_t ns_to_timeout = s->mosi_dlen_reg * 25;  // about 75fps, same a real hw
-            timer_mod_ns(&s->spi_timer,
-                                            ns_now + ns_to_timeout);
+            uint64_t ns_to_timeout = s->mosi_dlen_reg * 23;  // about 75fps, same as real hw
+            timer_mod_ns(&s->spi_timer, ns_now + ns_to_timeout);
             return;
         }
         maybe_encrypt_data(s);
