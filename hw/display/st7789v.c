@@ -317,7 +317,7 @@ static const GraphicHwOps st7789_ops = {
     .gfx_update = st7789_update_display,
 };
 
-extern int touch_sensor[10];
+extern int touch_sensor[14];
 #define PW 1200
 static void keyboard_event(DeviceState *dev, QemuConsole *src,
                                 InputEvent *evt) {
@@ -342,7 +342,13 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
             }
             int touch_codes[] = {Q_KEY_CODE_7, Q_KEY_CODE_8, Q_KEY_CODE_9,
                                  Q_KEY_CODE_0};
-            int tsens[] = {2, 3, 8, 9};
+            int tsens[4] = {2, 3, 8, 9};
+            if(s->iss3) {
+            	tsens[0]=0;
+            	tsens[1]=1;
+            	tsens[2]=11;
+            	tsens[3]=12;
+            }
             for (int i = 0; i < 4; i++)
                 if (qcode == touch_codes[i])
                     touch_sensor[tsens[i]] = 1000 * (1 - up);

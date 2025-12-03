@@ -17,7 +17,7 @@
 #include "hw/sysbus.h"
 #include "hw/misc/esp32_sens.h"
 
-int touch_sensor[10];
+int touch_sensor[14];
 
 uint32_t temp;
 
