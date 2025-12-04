@@ -12,9 +12,15 @@
 REG32(GPIO_OUT, 0x04)
 REG32(GPIO_OUT_W1TS, 0x08)
 REG32(GPIO_OUT_W1TC, 0x0c)
+REG32(GPIO_OUT1, 0x10)
+REG32(GPIO_OUT1_W1TS, 0x14)
+REG32(GPIO_OUT1_W1TC, 0x18)
 REG32(GPIO_ENABLE, 0x020)
 REG32(GPIO_ENABLE_W1TS, 0x024)
 REG32(GPIO_ENABLE_W1TC, 0x028)
+REG32(GPIO_ENABLE1, 0x02c)
+REG32(GPIO_ENABLE1_W1TS, 0x030)
+REG32(GPIO_ENABLE1_W1TC, 0x034)
 REG32(GPIO_STRAP, 0x0038)
 REG32(GPIO_IN, 0x003c)
 REG32(GPIO_IN1, 0x0040)
@@ -52,6 +58,7 @@ typedef struct Esp32GpioState {
     uint32_t gpio_acpu_int;
     uint32_t gpio_acpu_int1;
     uint32_t gpio_enable;
+    uint32_t gpio_enable1;
     uint32_t gpio_pin[40];
     uint32_t gpio_in_sel[256];
     uint32_t gpio_out_sel[40];

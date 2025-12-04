@@ -29,8 +29,14 @@ static uint64_t esp32_gpio_read(void *opaque, hwaddr addr, unsigned int size) {
         case A_GPIO_OUT:
             r = s->gpio_out;
             break;
+        case A_GPIO_OUT1:
+            r = s->gpio_out1;
+            break;
         case A_GPIO_ENABLE:
             r = s->gpio_enable;
+            break;
+        case A_GPIO_ENABLE1:
+            r = s->gpio_enable1;
             break;
         case A_GPIO_STRAP:
             r = s->strap_mode;
@@ -137,6 +143,11 @@ static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
     switch (addr) {
         case A_GPIO_OUT:
             s->gpio_out = value;
+            s->gpio_in = (s->gpio_in & ~s->gpio_enable) | (value & s->gpio_enable);
+            break;
+        case A_GPIO_OUT1:
+            s->gpio_out1 = value;
+            s->gpio_in1 = (s->gpio_in1 & ~s->gpio_enable1) | (value & s->gpio_enable1);
             break;
         case A_GPIO_OUT_W1TS:
             s->gpio_out |= value;
@@ -144,6 +155,24 @@ static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
         case A_GPIO_OUT_W1TC:
             s->gpio_out &= ~value;
             break;
+        case A_GPIO_ENABLE:
+        	s->gpio_enable = value;
+        	break;
+        case A_GPIO_ENABLE1:
+        	s->gpio_enable1 = value;
+        	break;
+        case A_GPIO_ENABLE_W1TS:
+        	s->gpio_enable |= value;
+        	break;
+        case A_GPIO_ENABLE_W1TC:
+        	s->gpio_enable &= ~value;
+        	break;
+        case A_GPIO_ENABLE1_W1TS:
+        	s->gpio_enable1 |= value;
+        	break;
+        case A_GPIO_ENABLE1_W1TC:
+        	s->gpio_enable1 &= ~value;
+        	break;
         case A_GPIO_STRAP:
             s->strap_mode = value;
             break;
