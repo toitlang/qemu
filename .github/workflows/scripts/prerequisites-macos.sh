@@ -4,6 +4,7 @@ set -euo pipefail
 
 brew install \
   libslirp \
+  pixman \
   sdl2 \
 && :
 

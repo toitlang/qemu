@@ -20,6 +20,7 @@ echo DBG
     --enable-gcrypt \
     --enable-cocoa \
     --disable-gtk \
+    --enable-pixman \
     --disable-sdl \
     --enable-strip \
     --enable-slirp \
