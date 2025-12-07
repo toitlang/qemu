@@ -58,7 +58,7 @@ int main(int argc, char*argv[]) {
     while(l>0 && package_path[l]!='/' && package_path[l]!='\\') l--;
     package_path[l]=0;
 #ifdef __APPLE__
-    snprintf(cmd,512,"DYLD_LIBRARY_PATH=%s/xtensa-softmmu %s/xtensa-softmmu/qemu-system-xtensa -machine %s -drive file=esp32flash.bin,if=mtd,format=raw -display default,show-cursor=on -nic user,model=esp32_wifi,net=192.168.4.0/24,hostfwd=tcp::16555-192.168.4.1:80 -parallel none -monitor none -serial /dev/tty"
+    snprintf(cmd,512,"DYLD_LIBRARY_PATH=%s/xtensa-softmmu %s/xtensa-softmmu/qemu-system-xtensa -machine %s -drive file=esp32flash.bin,if=mtd,format=raw -display default,show-cursor=on -nic user,model=esp32_wifi,net=192.168.4.0/24,hostfwd=tcp::16555-192.168.4.1:80 -parallel none -monitor none"
             ,package_path,package_path,machine);
 #else
     snprintf(cmd,512,"%s/xtensa-softmmu/qemu-system-xtensa -machine %s -drive file=esp32flash.bin,if=mtd,format=raw -display default,show-cursor=on -nic user,model=esp32_wifi,net=192.168.4.0/24,hostfwd=tcp::16555-192.168.4.1:80 -parallel none -monitor none"
