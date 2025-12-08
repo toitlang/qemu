@@ -3,6 +3,7 @@
 #include "hw/sysbus.h"
 #include "hw/hw.h"
 #include "hw/registerfields.h"
+#include "ui/console.h"
 
 #define TYPE_ESP32_GPIO "esp32.gpio"
 #define ESP32_GPIO(obj)             OBJECT_CHECK(Esp32GpioState, (obj), TYPE_ESP32_GPIO)
@@ -63,6 +64,9 @@ typedef struct Esp32GpioState {
     uint32_t gpio_in_sel[256];
     uint32_t gpio_out_sel[40];
     qemu_irq gpios[32];
+    QemuTextConsole *con;
+    uint32_t *data;
+    uint32_t redraw;
 } Esp32GpioState;
 
 typedef struct Esp32GpioClass {
