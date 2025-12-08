@@ -583,7 +583,12 @@ static void func_gpio(void *opaque, int n, int val) {
 
 
 
-static void esp32_gpio_realize(DeviceState *dev, Error **errp) {    
+static void esp32_gpio_realize(DeviceState *dev, Error **errp) {   
+        Esp32GpioState *s = ESP32_GPIO(dev);
+      s->con=graphic_console_init(dev,0,&text_console_ops,s);
+
+
+    qemu_console_resize(s->con,CONSOLE_WIDTH,CONSOLE_HEIGHT);
 }
 /*
 static void keyboard_event(DeviceState *dev, QemuConsole *src,
@@ -602,7 +607,6 @@ static void esp32_gpio_init(Object *obj) {
     Esp32GpioState *s = ESP32_GPIO(obj);
     SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
     DeviceState *dev = DEVICE(s);
-    dev->id=(char *)"GPIOS";
 
     /* Set the default value for the strap_mode property */
     object_property_set_int(obj, "strap_mode", ESP32_STRAP_MODE_FLASH_BOOT, &error_fatal);
@@ -621,11 +625,7 @@ static void esp32_gpio_init(Object *obj) {
    // QemuConsole *qc=QEMU_CONSOLE(s->con);
    // qc->hw_ops = &text_console_ops;
     //qc->hw = s;
-    s->con=graphic_console_init(dev,0,&text_console_ops,s);
-
-    object_property_set_link(OBJECT(s->con),"device",OBJECT(dev),&error_fatal);
-
-    qemu_console_resize(s->con,CONSOLE_WIDTH,CONSOLE_HEIGHT);
+   
 
   //  dpy_gfx_replace_surface(QEMU_CONSOLE(s->con), qemu_create_displaysurface(CONSOLE_WIDTH,CONSOLE_HEIGHT));
   //  qemu_text_console_init(s->con);
