@@ -1391,7 +1391,7 @@ char *qemu_console_get_label(QemuConsole *con)
                                        object_get_typename(c->device));
             }
         }
-        return g_strdup("VGA");
+        return g_strdup("GPIO");
     } else if (QEMU_IS_TEXT_CONSOLE(con)) {
         const char *label = qemu_text_console_get_label(QEMU_TEXT_CONSOLE(con));
         if (label) {

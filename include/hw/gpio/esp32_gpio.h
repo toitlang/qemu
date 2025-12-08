@@ -64,7 +64,7 @@ typedef struct Esp32GpioState {
     uint32_t gpio_in_sel[256];
     uint32_t gpio_out_sel[40];
     qemu_irq gpios[32];
-    QemuTextConsole *con;
+    QemuConsole *con;
     uint32_t *data;
     uint32_t redraw;
 } Esp32GpioState;

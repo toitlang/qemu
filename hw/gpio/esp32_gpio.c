@@ -380,10 +380,20 @@ static void draw_string_x_y(DisplaySurface *surface, int x, int y, char *s) {
     }
 }
 static void text_console_update(void *obj) {//},console_ch_t *) {
-   // printf("update con\n");
+   
     Esp32GpioState *s = ESP32_GPIO(obj);
+    if(!s->redraw || !qemu_console_is_visible(QEMU_CONSOLE(s->con))) return;
     
     DisplaySurface *surface = qemu_console_surface(QEMU_CONSOLE(s->con));
+    /* clear screen */
+    int bpp = (surface_bits_per_pixel(surface) + 7) >> 3;
+    uint8_t *d1 = surface_data(surface);
+    for (int y = 0; y < surface_height(surface); y++) {
+        memset(d1, 0x00, surface_width(surface) * bpp);
+        d1 += surface_stride(surface);
+    }
+
+
     char str[64];
     
     for(int i=0;i<40;i++) {
@@ -417,8 +427,8 @@ static void text_console_update(void *obj) {//},console_ch_t *) {
         }
         i++;
     }
-    dpy_gfx_update(QEMU_CONSOLE(s->con), 0, 0,
-                   surface_width(surface), surface_height(surface));
+    dpy_gfx_update_full(QEMU_CONSOLE(s->con));// 0, 0,
+                 //  surface_width(surface), surface_height(surface));
 
 }
 static void text_console_invalidate(void *obj) {
@@ -575,12 +585,24 @@ static void func_gpio(void *opaque, int n, int val) {
 
 static void esp32_gpio_realize(DeviceState *dev, Error **errp) {    
 }
+/*
+static void keyboard_event(DeviceState *dev, QemuConsole *src,
+                                InputEvent *evt) {
+                                }
+
+static QemuInputHandler keyboard_handler = {
+    .name  = "GPIO Keys",
+    .mask  = INPUT_EVENT_MASK_KEY | INPUT_EVENT_MASK_BTN | INPUT_EVENT_MASK_ABS,
+    .event = keyboard_event,
+};
+*/
 
 
 static void esp32_gpio_init(Object *obj) {
     Esp32GpioState *s = ESP32_GPIO(obj);
     SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
     DeviceState *dev = DEVICE(s);
+    dev->id=(char *)"GPIOS";
 
     /* Set the default value for the strap_mode property */
     object_property_set_int(obj, "strap_mode", ESP32_STRAP_MODE_FLASH_BOOT, &error_fatal);
@@ -595,17 +617,23 @@ static void esp32_gpio_init(Object *obj) {
     qdev_init_gpio_in_named(dev, func_gpio, ESP32_GPIOS_FUNC,1);
     s->gpio_in = 0x1;
     s->gpio_in1 = 0x8;
-    s->con=QEMU_TEXT_CONSOLE(object_new(TYPE_QEMU_FIXED_TEXT_CONSOLE));
-    QemuConsole *qc=QEMU_CONSOLE(s->con);
-    qc->hw_ops = &text_console_ops;
-    qc->hw = s;
+   // s->con=QEMU_CONSOLE(object_new(TYPE_QEMU_GRAPHIC_CONSOLE));//QEMU_TEXT_CONSOLE(object_new(TYPE_QEMU_FIXED_TEXT_CONSOLE));
+   // QemuConsole *qc=QEMU_CONSOLE(s->con);
+   // qc->hw_ops = &text_console_ops;
+    //qc->hw = s;
+    s->con=graphic_console_init(dev,0,&text_console_ops,s);
+
+    object_property_set_link(OBJECT(s->con),"device",OBJECT(dev),&error_fatal);
+
+    qemu_console_resize(s->con,CONSOLE_WIDTH,CONSOLE_HEIGHT);
 
   //  dpy_gfx_replace_surface(QEMU_CONSOLE(s->con), qemu_create_displaysurface(CONSOLE_WIDTH,CONSOLE_HEIGHT));
   //  qemu_text_console_init(s->con);
     //s->con=graphic_console_init(dev,0,&text_console_ops,s);
-    dpy_gfx_replace_surface(QEMU_CONSOLE(s->con), qemu_create_displaysurface(CONSOLE_WIDTH,CONSOLE_HEIGHT));
+   // dpy_gfx_replace_surface(QEMU_CONSOLE(s->con), qemu_create_displaysurface(CONSOLE_WIDTH,CONSOLE_HEIGHT));
     //qemu_text_console_init(s->con);
     //text_console_resize(s);
+   // qemu_input_handler_register(dev, &keyboard_handler);
 }
 
 
