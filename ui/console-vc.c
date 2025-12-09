@@ -281,6 +281,8 @@ static void kbd_send_chars(QemuTextConsole *s)
 {
     uint32_t len, avail;
 
+    if(!s->chr) return;
+
     len = qemu_chr_be_can_write(s->chr);
     avail = fifo8_num_used(&s->out_fifo);
     while (len > 0 && avail > 0) {

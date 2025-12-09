@@ -149,7 +149,7 @@ static void rgbled_realize(SSIPeripheral *d, Error **errp) {
     s->con=graphic_console_init(dev, 0, &rgbled_ops, s);
     qemu_console_resize(s->con,s->width*16, s->height*16);
     s->data=surface_data(qemu_console_surface(s->con));
-
+	s->redraw=1;
 }
 static void rgbled_reset(DeviceState *obj)
 {
@@ -157,7 +157,8 @@ static void rgbled_reset(DeviceState *obj)
     s->current_led=0;
     s->current_bit=0;
     s->current_value=0;
-    draw_leds(s);
+    s->redraw=1;
+//    draw_leds(s);
     /*
     for(int i=0;i<s->width;i++)
         for(int j=0;j<s->height;j++)

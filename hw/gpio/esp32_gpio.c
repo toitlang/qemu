@@ -60,8 +60,8 @@ struct gpio_matrix_t {
                     { 26, "I2S1O_WS_in", "I2S1O_WS_out", false },
                     { 27, "I2S0I_BCK_in", "I2S0I_BCK_out", false },
                     { 28, "I2S0I_WS_in", "I2S0I_WS_out", false },
-                    { 29, "I2CEXT0_SCL_in", "I2CEXT0_SCL_out", false },
-                    { 30, "I2CEXT0_SDA_in", "I2CEXT0_SDA_out", false },
+                    { 29, "I2C0_SCL_in", "I2C0_SCL_out", false },
+                    { 30, "I2C0_SDA_in", "I2C0_SDA_out", false },
                     { 31, "pwm0_sync0_in", "sdio_tohost_int_out", false },
                     { 32, "pwm0_sync1_in", "pwm0_out0a", false },
                     { 33, "pwm0_sync2_in", "pwm0_out0b", false },
@@ -126,8 +126,8 @@ struct gpio_matrix_t {
                     { 92, "", "rmtt_sig_out5", false },
                     { 93, "", "rmtt_sig_out6", false },
                     { 94, "", "rmtt_sig_out7", false },
-                    { 95, "I2CEXT1_SCL_in", "I2CEXT1_SCL_out", false },
-                    { 96, "I2CEXT1_SDA_in", "I2CEXT1_SDA_out", false },
+                    { 95, "I2C1_SCL_in", "I2C1_SCL_out", false },
+                    { 96, "I2C1_SDA_in", "I2C1_SDA_out", false },
                     { 97, "host_card_detect_n_1", "host_ccmd_od_pullup_en_n", false },
                     { 98, "host_card_detect_n_2", "host_rst_n_1", false },
                     { 99, "host_card_write_prt_1", "host_rst_n_2", false },
@@ -327,7 +327,6 @@ static int get_triggering(int int_type, int oldval, int val) {
     return 0;
 }
 static void set_gpio(void *opaque, int n, int val) {
-   // printf("set_gpio %d %d\n",n,val);
     Esp32GpioState *s = ESP32_GPIO(opaque);
     if (n < 32) {
         int oldval = (s->gpio_in >> n) & 1;
@@ -362,13 +361,15 @@ static void set_gpio(void *opaque, int n, int val) {
         }
     }
     s->redraw=1;
-   // printf("set_gpio %x\n",s->gpio_in);
+    
 }
+
+static pixman_color_t fgcol=QEMU_PIXMAN_COLOR(0xff, 0xff, 0xff), bgcol=QEMU_PIXMAN_COLOR_BLACK;
 
 static void draw_char_x_y(DisplaySurface *surface, int x, int y, unsigned char c) {
     if(x>320/8) return;
     static pixman_image_t *glyphs[256];
-    static pixman_color_t fgcol=QEMU_PIXMAN_COLOR(0xff, 0xff, 0xff), bgcol=QEMU_PIXMAN_COLOR_BLACK;
+    
     if (!glyphs[c])
             glyphs[c] = qemu_pixman_glyph_from_vgafont(FONT_HEIGHT, vgafont16, c);
     qemu_pixman_glyph_render(glyphs[c], surface->image,
@@ -379,10 +380,11 @@ static void draw_string_x_y(DisplaySurface *surface, int x, int y, char *s) {
         draw_char_x_y(surface,x++,y,*s++);
     }
 }
-static void text_console_update(void *obj) {//},console_ch_t *) {
+static void text_console_update(void *obj) {
    
     Esp32GpioState *s = ESP32_GPIO(obj);
     if(!s->redraw || !qemu_console_is_visible(QEMU_CONSOLE(s->con))) return;
+    s->redraw=0;
     
     DisplaySurface *surface = qemu_console_surface(QEMU_CONSOLE(s->con));
     /* clear screen */
@@ -393,42 +395,58 @@ static void text_console_update(void *obj) {//},console_ch_t *) {
         d1 += surface_stride(surface);
     }
 
-
     char str[64];
     
     for(int i=0;i<40;i++) {
         unsigned char c;
-        if(i<32) 
+        int op_en;
+        snprintf(str,32,"%2d:",i);
+        draw_string_x_y(surface, 0,i,str);
+        if(i<32) op_en=(s->gpio_enable>>i)&1;
+        else
+            op_en=(s->gpio_enable1>>(i-32))&1;
+        if(i<32)
             c=(s->gpio_in>>i)&1?'1':'0';
-         else
+        else
             c=(s->gpio_in1>>(i-32))&1?'1':'0';
-        draw_char_x_y(surface, 0,i,c);
+        if(op_en) fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR_GRAY;
+        else fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR(0, 0xff, 0);
+        draw_char_x_y(surface, 3,i,c);
         if(i<32) 
             c=(s->gpio_out>>i)&1?'1':'0';
          else
             c=(s->gpio_out1>>(i-32))&1?'1':'0';
-        draw_char_x_y(surface, 2,i,c);
-      //  sprintf(str,"%d  ",s->gpio_in_sel[i]);
-      //  draw_string_x_y(surface, 4,i,str);
+        if(!op_en) fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR_GRAY;
+        else fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR(0, 0xff, 0);
+        draw_char_x_y(surface, 5,i,c);
+        fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR(0xff, 0xff, 0xff);
+        if(s->gpio_out_sel[i]&1024) {
+            draw_string_x_y(surface, 7,i,(char *)"Input");
+        }
+        if(s->gpio_out_sel[i]&256) {
+            draw_string_x_y(surface, 7,i,(char *)"Output");
+        }
+
         int v=s->gpio_out_sel[i] & 0xff;
-        if(v>0 && v<229) {
+        if(v>0 && v<229 && op_en) {
             snprintf(str,32,"%s",gpio_matrix[v].out);
-            draw_string_x_y(surface, 4,i,str);
+            draw_string_x_y(surface, 7,i,str);
         }
     }
     int i=0;
     while(gpio_matrix[i].num>=0) {
         int n=gpio_matrix[i].num;
         int v=s->gpio_in_sel[n]&0x3f;
-        if(v<40 && v>0) {
-           // printf("%d,%d\n",i,v);
-            snprintf(str,32,"%s",gpio_matrix[i].in);
-            draw_string_x_y(surface, 16,v,str);
+        int sig_sel=s->gpio_in_sel[n]&0x80;
+        if(v<40) {
+            if(sig_sel) {
+                snprintf(str,32,"%s",gpio_matrix[i].in);
+                draw_string_x_y(surface, 20,v,str);
+            }
         }
         i++;
     }
-    dpy_gfx_update_full(QEMU_CONSOLE(s->con));// 0, 0,
-                 //  surface_width(surface), surface_height(surface));
+    dpy_gfx_update_full(QEMU_CONSOLE(s->con));
 
 }
 static void text_console_invalidate(void *obj) {
@@ -458,9 +476,19 @@ static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
             break;
         case A_GPIO_OUT_W1TS:
             s->gpio_out |= value;
+            s->gpio_in |= value;
             break;
         case A_GPIO_OUT_W1TC:
             s->gpio_out &= ~value;
+            s->gpio_in &= ~value;
+            break;
+        case A_GPIO_OUT1_W1TS:
+            s->gpio_out1 |= value;
+            s->gpio_in1 |= value;
+            break;
+        case A_GPIO_OUT1_W1TC:
+            s->gpio_out1 &= ~value;
+            s->gpio_in1 &= ~value;
             break;
         case A_GPIO_ENABLE:
         	s->gpio_enable = value;
@@ -536,7 +564,6 @@ static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
             s->gpio_in_sel[(addr - A_GPIO_FUNC_IN_SEL_CFG_BASE)/4] = value;
             break;
         case A_GPIO_FUNC_OUT_SEL_CFG_BASE ... A_GPIO_FUNC_OUT_SEL_CFG_BASE+0x9c:
-//            printf("gpio_out_sel %lx %lx\n",addr,value);
             s->gpio_out_sel[(addr - A_GPIO_FUNC_OUT_SEL_CFG_BASE)/4] = value;
             break;
     }
@@ -545,11 +572,14 @@ static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
         uint32_t diff = (s->gpio_out ^ oldvalue);
         for (int i = 0; i < 32; i++) {
             if ((1 << i) & diff) {
+                if(i!=16) {
+                    s->redraw=1;
+                }
                 qemu_set_irq(s->gpios[i], (s->gpio_out & (1 << i)) ? 1 : 0);
             }
         }
     }
-    s->redraw=1;
+    
 }
 
 static const MemoryRegionOps gpio_ops = {
@@ -584,23 +614,12 @@ static void func_gpio(void *opaque, int n, int val) {
 
 
 static void esp32_gpio_realize(DeviceState *dev, Error **errp) {   
-        Esp32GpioState *s = ESP32_GPIO(dev);
-      s->con=graphic_console_init(dev,0,&text_console_ops,s);
-
-
-    qemu_console_resize(s->con,CONSOLE_WIDTH,CONSOLE_HEIGHT);
+    Esp32GpioState *s = ESP32_GPIO(dev);
+    s->con=QEMU_CONSOLE(object_new(TYPE_QEMU_FIXED_TEXT_CONSOLE));
+    s->con->hw_ops = &text_console_ops;
+    s->con->hw = s;
+    dpy_gfx_replace_surface(QEMU_CONSOLE(s->con), qemu_create_displaysurface(CONSOLE_WIDTH,CONSOLE_HEIGHT));
 }
-/*
-static void keyboard_event(DeviceState *dev, QemuConsole *src,
-                                InputEvent *evt) {
-                                }
-
-static QemuInputHandler keyboard_handler = {
-    .name  = "GPIO Keys",
-    .mask  = INPUT_EVENT_MASK_KEY | INPUT_EVENT_MASK_BTN | INPUT_EVENT_MASK_ABS,
-    .event = keyboard_event,
-};
-*/
 
 
 static void esp32_gpio_init(Object *obj) {
@@ -621,19 +640,6 @@ static void esp32_gpio_init(Object *obj) {
     qdev_init_gpio_in_named(dev, func_gpio, ESP32_GPIOS_FUNC,1);
     s->gpio_in = 0x1;
     s->gpio_in1 = 0x8;
-   // s->con=QEMU_CONSOLE(object_new(TYPE_QEMU_GRAPHIC_CONSOLE));//QEMU_TEXT_CONSOLE(object_new(TYPE_QEMU_FIXED_TEXT_CONSOLE));
-   // QemuConsole *qc=QEMU_CONSOLE(s->con);
-   // qc->hw_ops = &text_console_ops;
-    //qc->hw = s;
-   
-
-  //  dpy_gfx_replace_surface(QEMU_CONSOLE(s->con), qemu_create_displaysurface(CONSOLE_WIDTH,CONSOLE_HEIGHT));
-  //  qemu_text_console_init(s->con);
-    //s->con=graphic_console_init(dev,0,&text_console_ops,s);
-   // dpy_gfx_replace_surface(QEMU_CONSOLE(s->con), qemu_create_displaysurface(CONSOLE_WIDTH,CONSOLE_HEIGHT));
-    //qemu_text_console_init(s->con);
-    //text_console_resize(s);
-   // qemu_input_handler_register(dev, &keyboard_handler);
 }
 
 
