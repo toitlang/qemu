@@ -124,6 +124,7 @@ jobs:
 
       - name: Build (${{ matrix.target }} @ ${{ matrix.platform }})
         run: |
+          export MACOSX_DEPLOYMENT_TARGET=13
           ninja -C build install
 
       - name: Package Darwin Libs (${{ matrix.target }} @ ${{ matrix.platform }})

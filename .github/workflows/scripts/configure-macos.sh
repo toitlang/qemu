@@ -12,7 +12,7 @@ sed -i '' "s/common_user_inc = \[\]/common_user_inc = \['include', 'build'\]/" m
 
 echo DBG
 ./configure --help
-
+export MACOSX_DEPLOYMENT_TARGET=13
 ./configure \
     --bindir=xtensa-softmmu \
     --datadir=share/qemu \
