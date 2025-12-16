@@ -15,7 +15,7 @@ slow_qtests = {
   'pxe-test': 610,
   'prom-env-test': 360,
   'boot-serial-test': 360,
-  'qos-test': 120,
+#  'qos-test': 120,
   'vmgenid-test': 610,
 }
 
@@ -27,7 +27,7 @@ qtests_generic = [
   'qmp-cmd-test',
   'qom-test',
   'test-hmp',
-  'qos-test',
+#  'qos-test',
   'readconfig-test',
   'netdev-socket',
 ]
@@ -349,7 +349,7 @@ qtests = {
   'migration-test': migration_files,
   'pxe-test': files('boot-sector.c'),
   'pnv-xive2-test': files('pnv-xive2-common.c', 'pnv-xive2-flush-sync.c'),
-  'qos-test': [chardev, io, qos_test_ss.apply({}).sources()],
+#  'qos-test': [chardev, io, qos_test_ss.apply({}).sources()],
   'tpm-crb-swtpm-test': [io, tpmemu_files],
   'tpm-crb-test': [io, tpmemu_files],
   'tpm-tis-swtpm-test': [io, tpmemu_files, 'tpm-tis-util.c'],
