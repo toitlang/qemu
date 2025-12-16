@@ -38,8 +38,20 @@ REG32(GPIO_PCPU_INT, 0x0068)
 REG32(GPIO_ACPU_INT1, 0x0074)
 REG32(GPIO_PCPU_INT1, 0x007c)
 REG32(GPIO_PIN_BASE,0x88)
+    FIELD(GPIO_PIN,INT_TYPE,7,3)
+    FIELD(GPIO_PIN,INT_ENABLE,13,5)
 REG32(GPIO_FUNC_IN_SEL_CFG_BASE,0x130)
+    FIELD(GPIO_FUNC_IN,SEL,0,6)
+    FIELD(GPIO_FUNC_IN,SIG_SEL,7,1)
 REG32(GPIO_FUNC_OUT_SEL_CFG_BASE,0x530)
+    FIELD(GPIO_FUNC_OUT,SEL,0,9)
+    FIELD(GPIO_FUNC_OUT,OEN_SEL,10,1)
+REG32(IO_MUX_BASE,0x4)
+    FIELD(IO_MUX,FUN_WPD,7,1)
+    FIELD(IO_MUX,FUN_WPU,8,1)
+    FIELD(IO_MUX,FUN_IE,9,1)
+    FIELD(IO_MUX,FUN_DRV,10,2)
+    FIELD(IO_MUX,MCU_SEL,12,3)
 
 #define ESP32_STRAP_MODE_FLASH_BOOT 0x12
 #define ESP32_STRAP_MODE_UART_BOOT  0x0f
@@ -48,6 +60,7 @@ typedef struct Esp32GpioState {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
+    MemoryRegion iomuxmem;
     qemu_irq irq;
     uint32_t gpio_out;
     uint32_t gpio_out1;
@@ -66,6 +79,7 @@ typedef struct Esp32GpioState {
     uint32_t gpio_in_sel[256];
     uint32_t gpio_out_sel[40];
     qemu_irq gpios[32];
+    uint32_t iomux_regs[40];
     QemuConsole *con;
     uint32_t *data;
     uint32_t redraw;
@@ -78,3 +92,4 @@ typedef struct Esp32GpioClass {
 #define ESP32_GPIOS "esp32_gpios"
 #define ESP32_GPIOS_IN "esp32_gpios_in"
 #define ESP32_GPIOS_FUNC "esp32_gpios_func"
+

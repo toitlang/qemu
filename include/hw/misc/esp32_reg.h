@@ -23,6 +23,7 @@
 #define DR_REG_SENS_BASE                        0x3ff48800
 #define DR_REG_RTC_I2C_BASE                     0x3ff48C00
 #define DR_REG_IO_MUX_BASE                      0x3ff49000
+#define DR_REG_WDG_BASE                         0x3ff4A000
 #define DR_REG_HINF_BASE                        0x3ff4B000
 #define DR_REG_UHCI1_BASE                       0x3ff4C000
 #define DR_REG_ANA_BASE                         0x3ff4E000

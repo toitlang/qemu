@@ -24,7 +24,7 @@
 #include "sysemu/runstate.h"
 
 #define CONSOLE_WIDTH 320
-#define CONSOLE_HEIGHT 640
+#define CONSOLE_HEIGHT 656
 
 struct gpio_matrix_t {
     int         num;
@@ -254,6 +254,62 @@ struct gpio_matrix_t {
                     { 228, "", "sig_in_func228", false },
                     { -1, "", "", false } };
 
+static const char *int_types[8]={"","IRQ Rising","IRQ Falling","IRQ Any","IRQ Low","IRQ High","",""} ;
+
+struct pin_mux {
+    int         pinnum;
+    const char* pinname;
+    const char* functions[6];
+} io_mux_pins[] = {
+    { 0, "GPIO0", { "GPIO0", "CLK_OUT1", "GPIO0", "-", "-", "EMAC_TX_CLK" } },
+    { 1, "U0TXD", { "U0TXD", "CLK_OUT3", "GPIO1", "-", "-", "EMAC_RXD2" } },
+    { 2, "GPIO2", { "GPIO2", "HSPIWP", "GPIO2", "HS2_DATA0", "SD_DATA0", "-" } },
+    { 3, "U0RXD", { "U0RXD", "CLK_OUT2", "GPIO3", "-", "-", "-" } },
+    { 4, "GPIO4", { "GPIO4", "HSPIHD", "GPIO4", "HS2_DATA1", "SD_DATA1", "EMAC_TX_ER" } },
+    { 5, "GPIO5", { "GPIO5", "VSPICS0", "GPIO5", "HS1_DATA6", "-", "EMAC_RX_CLK" } },
+    { 6, "SD_CLK", { "SD_CLK", "SPICLK", "GPIO6", "HS1_CLK", "U1CTS", "-" } },
+    { 7, "SD_DATA_0", { "SD_DATA0", "SPIQ", "GPIO7", "HS1_DATA0", "U2RTS", "-" } },
+    { 8, "SD_DATA_1", { "SD_DATA1", "SPID", "GPIO8", "HS1_DATA1", "U2CTS", "-" } },
+    { 9, "SD_DATA_2", { "SD_DATA2", "SPIHD", "GPIO9", "HS1_DATA2", "U1RXD", "-" } },
+    { 10, "SD_DATA_3", { "SD_DATA3", "SPIWP", "GPIO10", "HS1_DATA3", "U1TXD", "-" } },
+    { 11, "SD_CMD", { "SD_CMD", "SPICS0", "GPIO11", "HS1_CMD", "U1RTS", "-" } },
+    { 12, "MTDI", { "MTDI", "HSPIQ", "GPIO12", "HS2_DATA2", "SD_DATA2", "EMAC_TXD3" } },
+    { 13, "MTCK", { "MTCK", "HSPID", "GPIO13", "HS2_DATA3", "SD_DATA3", "EMAC_RX_ER" } },
+    { 14, "MTMS", { "MTMS", "HSPICLK", "GPIO14", "HS2_CLK", "SD_CLK", "EMAC_TXD2" } },
+    { 15, "MTDO", { "MTDO", "HSPICS0", "GPIO15", "HS2_CMD", "SD_CMD", "EMAC_RXD3" } },
+    { 16, "GPIO16", { "GPIO16", "-", "GPIO16", "HS1_DATA4", "U2RXD", "EMAC_CLK_OUT1" } },
+    { 17, "GPIO17", { "GPIO17", "-", "GPIO17", "HS1_DATA5", "U2TXD", "EMAC_CLK_1801" } },
+    { 18, "GPIO18", { "GPIO18", "VSPICLK", "GPIO18", "HS1_DATA7", "-", "-" } },
+    { 19, "GPIO19", { "GPIO19", "VSPIQ", "GPIO19", "U0CTS", "-", "EMAC_TXD0" } },
+    { 19, "GPIO20", { "GPIO20", "-", "-", "-", "-", "-" } },
+    { 21, "GPIO21", { "GPIO21", "VSPIHD", "GPIO21", "-", "-", "EMAC_TX_EN" } },
+    { 22, "GPIO22", { "GPIO22", "VSPIWP", "GPIO22", "U0RTS", "-", "EMAC_TXD1" } },
+    { 23, "GPIO23", { "GPIO23", "VSPID", "GPIO23", "HS1_STROBE", "-", "-" } },
+    { 24, "GPIO24", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 25, "GPIO25", { "GPIO25", "-", "GPIO25", "-", "-", "EMAC_RXD0" } },
+    { 26, "GPIO26", { "GPIO26", "-", "GPIO26", "-", "-", "EMAC_RXD1" } },
+    { 27, "GPIO27", { "GPIO27", "-", "GPIO27", "-", "-", "EMAC_RX_DV" } },
+    { 28, "GPIO28", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 29, "GPIO29", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 30, "GPIO30", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 31, "GPIO31", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 32, "32K_XP", { "GPIO32", "-", "GPIO32", "-", "-", "-" } },
+    { 33, "32K_XN", { "GPIO33", "-", "GPIO33", "-", "-", "-" } },
+    { 34, "VDET_1", { "GPIO34", "-", "GPIO34", "-", "-", "-" } },
+    { 35, "VDET_2", { "GPIO35", "-", "GPIO35", "-", "-", "-" } },
+    { 36, "SENSOR_VP", { "GPIO36", "-", "GPIO36", "-", "-", "-" } },
+    { 37, "SENSOR_CAPP", { "GPIO37", "-", "GPIO37", "-", "-", "-" } },
+    { 38, "SENSOR_CAPN", { "GPIO38", "-", "GPIO38", "-", "-", "-" } },
+    { 39, "SENSOR_VN", { "GPIO39", "-", "GPIO39", "-", "-", "-" } },
+    { -1, "", { "" } },
+};
+static const uint8_t GPIO_PIN_MUX_REG_OFFSET[] = {
+    0x44,0x88,0x40,0x84,0x48,0x6c,0x60,0x64,0x68,0x54,0x58,0x5c,0x34,0x38,0x30,0x3c,
+    0x4c,0x50,0x70,0x74,0x78,0x7c,0x80,0x8c,0x00,0x24,0x28,0x2c,0x00,0x00,0x00,0x00,
+    0x1c,0x20,0x14,0x18,0x04,0x08,0x0c,0x10,
+};
+
+
 static uint64_t esp32_gpio_read(void *opaque, hwaddr addr, unsigned int size) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
     uint64_t r = 0;
@@ -364,27 +420,38 @@ static void set_gpio(void *opaque, int n, int val) {
     
 }
 
-static pixman_color_t fgcol=QEMU_PIXMAN_COLOR(0xff, 0xff, 0xff), bgcol=QEMU_PIXMAN_COLOR_BLACK;
-
-static void draw_char_x_y(DisplaySurface *surface, int x, int y, unsigned char c) {
+static void draw_char_x_y(DisplaySurface *surface, int x, int y, unsigned char c, pixman_color_t fgcol) {
     if(x>320/8) return;
     static pixman_image_t *glyphs[256];
+    static pixman_color_t bgcol=QEMU_PIXMAN_COLOR_BLACK;
     
     if (!glyphs[c])
             glyphs[c] = qemu_pixman_glyph_from_vgafont(FONT_HEIGHT, vgafont16, c);
     qemu_pixman_glyph_render(glyphs[c], surface->image,
                              &fgcol, &bgcol, x, y, FONT_WIDTH, FONT_HEIGHT);
 }
-static void draw_string_x_y(DisplaySurface *surface, int x, int y, char *s) {
+static void draw_string_x_y(DisplaySurface *surface, int x, int y, char *s,  pixman_color_t fgcol) {
     while(*s) {
-        draw_char_x_y(surface,x++,y,*s++);
+        draw_char_x_y(surface,x++,y,*s++,fgcol);
     }
 }
+
+static void addconnection(char *connection,const char *str) {
+    if(strlen(connection)>1) {
+        strncat(connection,",",32);
+    }
+    strncat(connection,str,32);
+}
+static const pixman_color_t WHITE=QEMU_PIXMAN_COLOR(0xff, 0xff, 0xff);
+static const pixman_color_t GREEN=QEMU_PIXMAN_COLOR(0x00, 0xff, 0x00);
+static const pixman_color_t GREY=QEMU_PIXMAN_COLOR(0x80, 0x80, 0x80);
+static const pixman_color_t YELLOW=QEMU_PIXMAN_COLOR(0xff, 0xff, 0x00);
+
 static void text_console_update(void *obj) {
-   
     Esp32GpioState *s = ESP32_GPIO(obj);
     if(!s->redraw || !qemu_console_is_visible(QEMU_CONSOLE(s->con))) return;
     s->redraw=0;
+    char connections[40][32];
     
     DisplaySurface *surface = qemu_console_surface(QEMU_CONSOLE(s->con));
     /* clear screen */
@@ -395,59 +462,63 @@ static void text_console_update(void *obj) {
         d1 += surface_stride(surface);
     }
 
-    char str[64];
+    char str[32];
+    draw_string_x_y(surface, 0,0,(char *)"No I O Connections              Function",YELLOW);
     
     for(int i=0;i<40;i++) {
-        unsigned char c;
-        int op_en;
+        connections[i][0]=0;
         snprintf(str,32,"%2d:",i);
-        draw_string_x_y(surface, 0,i,str);
-        if(i<32) op_en=(s->gpio_enable>>i)&1;
-        else
-            op_en=(s->gpio_enable1>>(i-32))&1;
-        if(i<32)
-            c=(s->gpio_in>>i)&1?'1':'0';
-        else
-            c=(s->gpio_in1>>(i-32))&1?'1':'0';
-        if(op_en) fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR_GRAY;
-        else fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR(0, 0xff, 0);
-        draw_char_x_y(surface, 3,i,c);
-        if(i<32) 
-            c=(s->gpio_out>>i)&1?'1':'0';
-         else
-            c=(s->gpio_out1>>(i-32))&1?'1':'0';
-        if(!op_en) fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR_GRAY;
-        else fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR(0, 0xff, 0);
-        draw_char_x_y(surface, 5,i,c);
-        fgcol=(pixman_color_t)QEMU_PIXMAN_COLOR(0xff, 0xff, 0xff);
-        if(s->gpio_out_sel[i]&1024) {
-            draw_string_x_y(surface, 7,i,(char *)"Input");
-        }
-        if(s->gpio_out_sel[i]&256) {
-            draw_string_x_y(surface, 7,i,(char *)"Output");
-        }
+        draw_string_x_y(surface, 0,i+1,str,WHITE);
+        int op_en=((i<32)?s->gpio_enable>>i:s->gpio_enable1>>(i-32))&1;
+        int in=((i<32)?s->gpio_in>>i:s->gpio_in1>>(i-32))&1;
+        int out=((i<32)?s->gpio_out>>i:s->gpio_out1>>(i-32))&1;
 
-        int v=s->gpio_out_sel[i] & 0xff;
-        if(v>0 && v<229 && op_en) {
-            snprintf(str,32,"%s",gpio_matrix[v].out);
-            draw_string_x_y(surface, 7,i,str);
+        int io_mux=GPIO_PIN_MUX_REG_OFFSET[i]/4;
+        uint32_t out_sel=FIELD_EX32(s->gpio_out_sel[i],GPIO_FUNC_OUT,SEL);
+        uint32_t oen_sel=FIELD_EX32(s->gpio_out_sel[i],GPIO_FUNC_OUT,OEN_SEL);
+        uint32_t mux_ie=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_IE);
+        uint32_t mux_func=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,MCU_SEL);
+        uint32_t pullup=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_WPU);
+        uint32_t pulldown=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_WPD);
+        uint32_t int_type=FIELD_EX32(s->gpio_pin[i],GPIO_PIN,INT_TYPE);
+        uint32_t int_enable=FIELD_EX32(s->gpio_pin[i],GPIO_PIN,INT_ENABLE);
+
+        draw_char_x_y(surface, 3,i+1,in?'1':'0',((oen_sel || mux_ie)&&!op_en)?GREEN:GREY);
+        draw_char_x_y(surface, 5,i+1,out?'1':'0',((out_sel==0x100)&&op_en)?GREEN:GREY);
+
+        if(( mux_ie || oen_sel) && !op_en) {
+            addconnection(connections[i],"Input");
+        } else {
+            if(out_sel==0x100) addconnection(connections[i],"Output");
         }
+        if(mux_func<6) {
+            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
+        }
+        if(out_sel<229 && op_en) {
+            addconnection(connections[i],gpio_matrix[out_sel].out);        
+        }
+        if(pullup) addconnection(connections[i],"PU");
+        if(pulldown) addconnection(connections[i],"PD");
+        if(int_enable) addconnection(connections[i],int_types[int_type]);
     }
+    
     int i=0;
     while(gpio_matrix[i].num>=0) {
         int n=gpio_matrix[i].num;
-        int v=s->gpio_in_sel[n]&0x3f;
-        int sig_sel=s->gpio_in_sel[n]&0x80;
-        if(v<40) {
+        int in_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SEL);
+        int sig_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SIG_SEL);
+        if(in_sel<40) {
             if(sig_sel) {
                 snprintf(str,32,"%s",gpio_matrix[i].in);
-                draw_string_x_y(surface, 20,v,str);
+                addconnection(connections[in_sel],str);
             }
         }
         i++;
     }
+    for(i=0;i<40;i++) {
+        draw_string_x_y(surface, 7, i+1, connections[i],WHITE);
+    }
     dpy_gfx_update_full(QEMU_CONSOLE(s->con));
-
 }
 static void text_console_invalidate(void *obj) {
     Esp32GpioState *s = ESP32_GPIO(obj);
@@ -458,6 +529,25 @@ static const GraphicHwOps text_console_ops = {
     .invalidate  = text_console_invalidate,
     .gfx_update = text_console_update,
 };
+
+static uint64_t esp32_iomux_read(void *opaque, hwaddr addr, unsigned int size) {
+    Esp32GpioState *s = ESP32_GPIO(opaque);
+    int n=addr/4;
+    if(n<40) {
+        return s->iomux_regs[n];
+    }
+    return 0;
+}
+
+static void esp32_iomux_write(void *opaque, hwaddr addr, uint64_t value,
+                             unsigned int size) {
+    Esp32GpioState *s = ESP32_GPIO(opaque);
+    int n=addr/4;
+    if(n<40) {
+        s->iomux_regs[n]=value;
+    }
+    //printf("IOMUX %lx %lx\n",addr,value);
+}
 
 static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
                              unsigned int size) {
@@ -588,6 +678,12 @@ static const MemoryRegionOps gpio_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
+static const MemoryRegionOps iomux_ops = {
+    .read = esp32_iomux_read,
+    .write = esp32_iomux_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+};
+
 static void esp32_gpio_reset(Object *dev, ResetType type) {
   Esp32GpioState *s = ESP32_GPIO(dev);
   for(int i=0;i<256;i++) {
@@ -632,7 +728,10 @@ static void esp32_gpio_init(Object *obj) {
 
     memory_region_init_io(&s->iomem, obj, &gpio_ops, s,
                           TYPE_ESP32_GPIO, 0x1000);
+    memory_region_init_io(&s->iomuxmem, obj, &iomux_ops, s,
+                          TYPE_ESP32_GPIO, 0x1000);
     sysbus_init_mmio(sbd, &s->iomem);
+    sysbus_init_mmio(sbd, &s->iomuxmem);
     sysbus_init_irq(sbd, &s->irq);
     qdev_init_gpio_out_named(dev, &s->irq, SYSBUS_DEVICE_GPIO_IRQ, 1);
     qdev_init_gpio_out_named(dev, s->gpios, ESP32_GPIOS, 32);

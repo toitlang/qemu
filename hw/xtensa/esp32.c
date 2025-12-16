@@ -248,15 +248,20 @@ static void esp32_clk_update(void* opaque, int n, int level)
     clock_update_hz(s->cpu[1].clock, cpu_clk_freq );
 }
 
-static void esp32_soc_add_periph_device(MemoryRegion *dest, void* dev, hwaddr dport_base_addr)
+static void esp32_soc_add_periph_device_n(MemoryRegion *dest, void* dev, hwaddr dport_base_addr, int n)
 {
-    MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(dev), 0);
+    MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(dev), n);
     memory_region_add_subregion_overlap(dest, dport_base_addr, mr, 0);
     MemoryRegion *mr_apb = g_new(MemoryRegion, 1);
     char *name = g_strdup_printf("mr-apb-0x%08x", (uint32_t) dport_base_addr);
     memory_region_init_alias(mr_apb, OBJECT(dev), name, mr, 0, memory_region_size(mr));
     memory_region_add_subregion_overlap(dest, dport_base_addr - DR_REG_DPORT_APB_BASE + APB_REG_BASE, mr_apb, 0);
     g_free(name);
+}
+
+static void esp32_soc_add_periph_device(MemoryRegion *dest, void* dev, hwaddr dport_base_addr)
+{
+    esp32_soc_add_periph_device_n(dest,dev,dport_base_addr,0);
 }
 
 static void esp32_soc_add_unimp_device(MemoryRegion *dest, const char* name, hwaddr dport_base_addr, size_t size, uint32_t default_value)
@@ -447,6 +452,8 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
 
     qdev_realize(DEVICE(&s->gpio), &s->periph_bus, &error_fatal);
     esp32_soc_add_periph_device(sys_mem, &s->gpio, DR_REG_GPIO_BASE);
+    esp32_soc_add_periph_device_n(sys_mem, &s->gpio, DR_REG_IO_MUX_BASE,1);
+
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->gpio),0,qdev_get_gpio_in(intmatrix_dev, ETS_GPIO_INTR_SOURCE));
 
     qdev_connect_gpio_out_named(DEVICE(&s->ledc),"func_irq",0,
@@ -573,7 +580,7 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
                        qdev_get_gpio_in(intmatrix_dev, ETS_SDIO_HOST_INTR_SOURCE));
 
     esp32_soc_add_unimp_device(sys_mem, "esp32.rtcio", DR_REG_RTCIO_BASE, 0x400,0);
-    esp32_soc_add_unimp_device(sys_mem, "esp32.iomux", DR_REG_IO_MUX_BASE, 0x2000,0);
+    esp32_soc_add_unimp_device(sys_mem, "esp32.wdg", DR_REG_WDG_BASE, 0x1000,0);
     esp32_soc_add_unimp_device(sys_mem, "esp32.hinf", DR_REG_HINF_BASE, 0x1000,0);
     esp32_soc_add_unimp_device(sys_mem, "esp32.slc", DR_REG_SLC_BASE, 0x1000,0);
     esp32_soc_add_unimp_device(sys_mem, "esp32.slchost", DR_REG_SLCHOST_BASE, 0x1000,0);
