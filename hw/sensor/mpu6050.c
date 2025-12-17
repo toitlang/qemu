@@ -128,12 +128,9 @@ static void draw_filled_square_with_uv(uint32_t *buffer, float pitch, float roll
             }
         }
     }
-    // for(int i=0;i<4;i++) {
-    //      buffer[projected[i].y * WIDTH + projected[i].x] = 0xff<<(i*8) | 0xfff00000;
-    // }
 }
 
-// Draw a simple representation of the MPU6050 (or system it's attached to)
+// Draw a simple representation of the MPU6050 
 static void mpu6050_draw(MPU6050State *s) {
     draw_filled_square_with_uv(s->data,s->pitch,s->roll,-1);
 }
@@ -162,14 +159,13 @@ static void mpu6050_update_rotation(MPU6050State *s) {
     s->accel_data[2] = (int16_t)(cos(DEG_TO_RAD(s->roll)) * cos(DEG_TO_RAD(s->pitch)) * scale)+randomnum();
 
     s->gyro_data[0] = s->delta_pitch * 131;  // Simulate gyroscope pitch
-    s->gyro_data[1] = s->delta_roll * 131;    // Simulate gyroscope roll
-    s->gyro_data[2] = 0;                  // No roll in this simple simulation
+    s->gyro_data[1] = s->delta_roll * 131;   // Simulate gyroscope roll
+    s->gyro_data[2] = 0;                  
 
     s->delta_pitch = 0;
     s->delta_roll = 0;
 
-    //printf("%d\n",s->accel_data[0]);
-    // Redraw the MPU6050 board representation
+    // Redraw the MPU6050 board
     mpu6050_draw(s);
 }
 
@@ -191,7 +187,6 @@ static void mpu6050_mouse_event(DeviceState *dev, QemuConsole *con, InputEvent *
         }
     }
     if (evt->type == INPUT_EVENT_KIND_ABS && s->mousepressed) {
-
         InputMoveEvent *move = evt->u.abs.data;
         if (move->axis == 1) {
             s->delta_pitch=s->pitch-move->value;
@@ -203,7 +198,6 @@ static void mpu6050_mouse_event(DeviceState *dev, QemuConsole *con, InputEvent *
             if(s->downy==-1) s->downy=move->value;
             s->roll =s->down_roll - (360*(s->downy-move->value))/32768;
         }
-        //printf("Event %d %d\n",s->pitch,s->roll);
         mpu6050_update_rotation(s);
     }
     s->redraw=1;
@@ -215,7 +209,6 @@ static int mpu6050_i2c_send(I2CSlave *i2c, uint8_t data)
 {
     MPU6050State *s = (MPU6050State *)i2c;
 
-    
     // If this is the first byte, it's the register address
     if (s->selected_reg == 0) {
         s->selected_reg = data;
@@ -223,7 +216,6 @@ static int mpu6050_i2c_send(I2CSlave *i2c, uint8_t data)
         // Subsequent bytes are written to the selected register
         s->regs[s->selected_reg++] = data;
     }
-    //printf("send %x %x\n",data,s->selected_reg);
     return 0;
 }
 
@@ -319,6 +311,8 @@ static void mpu6050_reset(DeviceState *dev)
     MPU6050State *s = MPU6050(dev);
     s->selected_reg=0;
     s->pitch=0;
+    s->regs[117]=0x68;
+    s->regs[107]=0x40;
 }
 static int mpu6050_event(I2CSlave *i2c, enum i2c_event event)
 {
@@ -338,6 +332,7 @@ static void mpu6050_realize(DeviceState *dev, Error **errp) {
     s->data=surface_data(qemu_console_surface(s->con));
     qemu_input_handler_bind(is,DEVICE(s)->id,0,errp);
     s->redraw=1;
+    mpu6050_reset(dev);
 }
 // MPU6050 class initialization function
 static void mpu6050_class_init(ObjectClass *klass, void *data)
