@@ -327,7 +327,7 @@ static void esp32_spi_do_command(Esp32SpiState* s, uint32_t cmd_reg)
             // the DMA command list
             unsigned addr = (0x3ff00000 | (s->outlink_reg & R_SPI_DMA_OUT_LINK_ADDR_MASK));
             int v[3];
-            uint64_t ns_now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+            uint64_t ns_now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
 
             BusState *b = BUS(s->spi);
             BusChild *ch = QTAILQ_FIRST(&b->children);
@@ -419,7 +419,7 @@ static void esp32_spi_init(Object *obj)
                           TYPE_ESP32_SPI, ESP32_SPI_REG_SIZE);
     sysbus_init_mmio(sbd, &s->iomem);
     sysbus_init_irq(sbd, &s->irq);
-    timer_init_ns(&s->spi_timer, QEMU_CLOCK_REALTIME, esp32_spi_timer_cb, s);
+    timer_init_ns(&s->spi_timer, QEMU_CLOCK_VIRTUAL, esp32_spi_timer_cb, s);
 
     s->spi = ssi_create_bus(DEVICE(s), "spi");
     qdev_init_gpio_out_named(DEVICE(s), &s->cs_gpio[0], SSI_GPIO_CS, ESP32_SPI_CS_COUNT);

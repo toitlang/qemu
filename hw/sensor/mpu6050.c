@@ -136,7 +136,6 @@ static void draw_filled_square_with_uv(uint32_t *buffer, float pitch, float roll
 // Draw a simple representation of the MPU6050 (or system it's attached to)
 static void mpu6050_draw(MPU6050State *s) {
     draw_filled_square_with_uv(s->data,s->pitch,s->roll,-1);
-    s->redraw=1;
 }
 
 static int randomnum(void) {
@@ -180,7 +179,7 @@ static void mpu6050_update_rotation(MPU6050State *s) {
 static void mpu6050_mouse_event(DeviceState *dev, QemuConsole *con, InputEvent *evt)
 {
     MPU6050State *s = MPU6050(dev);
-//    printf("Event %d %x\n",evt->type,evt->u.abs.data->axis);
+    //printf("Event %d %x\n",evt->type,evt->u.abs.data->axis);
     if (evt->type == INPUT_EVENT_KIND_BTN) {
         InputBtnEvent *btn=evt->u.btn.data;
         s->mousepressed=btn->down;
@@ -207,6 +206,7 @@ static void mpu6050_mouse_event(DeviceState *dev, QemuConsole *con, InputEvent *
         //printf("Event %d %d\n",s->pitch,s->roll);
         mpu6050_update_rotation(s);
     }
+    s->redraw=1;
 }
 
 
@@ -294,6 +294,7 @@ static void mpu6050_update_display(void *opaque) {
     MPU6050State *s = MPU6050(opaque);
     if (!s->redraw) return;
     s->redraw = 0;
+    //printf("mpu6050_update_display\n");
     mpu6050_draw(s);
     dpy_gfx_update(s->con, 0, 0, 200, 200);
 }
