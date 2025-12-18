@@ -686,7 +686,7 @@ static uint64_t translate_phys_addr(void *opaque, uint64_t addr)
 OBJECT_DECLARE_SIMPLE_TYPE(Esp32s3MachineState, ESP32S3_MACHINE)
 
 // -----------------------------------------------
-
+/*
 static void esp32s3_soc_add_unimp_device(MemoryRegion *dest, const char* name, hwaddr dport_base_addr, size_t size)
 {
     create_unimplemented_device(name, dport_base_addr, size);
@@ -694,6 +694,7 @@ static void esp32s3_soc_add_unimp_device(MemoryRegion *dest, const char* name, h
     create_unimplemented_device(name_apb, dport_base_addr + APB_REG_BASE, size);
     g_free(name_apb);
 }
+    */
 
 
 static void add_ram_device(Esp32s3SocState *ss, const char* name, hwaddr base_addr, size_t size) {
@@ -916,6 +917,8 @@ static void esp32s3_machine_init(MachineState *machine)
         MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->gpio), 0);
         memory_region_add_subregion_overlap(sys_mem, DR_REG_GPIO_BASE, mr, 0);
         sysbus_connect_irq(SYS_BUS_DEVICE(&ss->gpio),0,qdev_get_gpio_in(intmatrix_dev, ETS_GPIO_INTR_SOURCE));
+        mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->gpio), 1);
+        memory_region_add_subregion_overlap(sys_mem, DR_REG_IO_MUX_BASE, mr, 0);
 
     }
 
@@ -1125,7 +1128,7 @@ static void esp32s3_machine_init(MachineState *machine)
     qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_GPIOS, 21, qdev_get_gpio_in(DEVICE(servo), 0));
 
 //    esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.rmt", DR_REG_RMT_BASE, 0x1000);
-    esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.iomux", DR_REG_IO_MUX_BASE, 0x2000);
+ //   esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.iomux", DR_REG_IO_MUX_BASE, 0x2000);
 
     /* Need MMU initialized prior to ELF loading,
      * so that ELF gets loaded into virtual addresses

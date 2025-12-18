@@ -289,10 +289,10 @@ struct pin_mux {
     { 25, "GPIO25", { "GPIO25", "-", "GPIO25", "-", "-", "EMAC_RXD0" } },
     { 26, "GPIO26", { "GPIO26", "-", "GPIO26", "-", "-", "EMAC_RXD1" } },
     { 27, "GPIO27", { "GPIO27", "-", "GPIO27", "-", "-", "EMAC_RX_DV" } },
-    { 28, "GPIO28", { "GPIO24", "-", "-", "-", "-", "-" } },
-    { 29, "GPIO29", { "GPIO24", "-", "-", "-", "-", "-" } },
-    { 30, "GPIO30", { "GPIO24", "-", "-", "-", "-", "-" } },
-    { 31, "GPIO31", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 28, "GPIO28", { "GPIO28", "-", "-", "-", "-", "-" } },
+    { 29, "GPIO29", { "GPIO29", "-", "-", "-", "-", "-" } },
+    { 30, "GPIO30", { "GPIO30", "-", "-", "-", "-", "-" } },
+    { 31, "GPIO31", { "GPIO31", "-", "-", "-", "-", "-" } },
     { 32, "32K_XP", { "GPIO32", "-", "GPIO32", "-", "-", "-" } },
     { 33, "32K_XN", { "GPIO33", "-", "GPIO33", "-", "-", "-" } },
     { 34, "VDET_1", { "GPIO34", "-", "GPIO34", "-", "-", "-" } },
@@ -463,7 +463,7 @@ static void text_console_update(void *obj) {
     }
 
     char str[32];
-    draw_string_x_y(surface, 0,0,(char *)"No I O Connections              Function",YELLOW);
+    draw_string_x_y(surface, 0,0,(char *)"No I O Connections",YELLOW);
     
     for(int i=0;i<40;i++) {
         connections[i][0]=0;
@@ -491,10 +491,12 @@ static void text_console_update(void *obj) {
         } else {
             if(out_sel==0x100) addconnection(connections[i],"Output");
         }
-        if(mux_func<6) {
-            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
+//        printf("%d: %x %x %d %d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],op_en,mux_func);
+        if(mux_func<6 && mux_func!=2/*&& (mux_ie || oen_sel || out_sel==0x100)*/) {
+            addconnection(connections[i],(char *)io_mux_pins[i].functions[mux_func]);
+//            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
         }
-        if(out_sel<229 && op_en) {
+        if(out_sel<229 && op_en && mux_func==2 && (mux_ie || op_en)) {
             addconnection(connections[i],gpio_matrix[out_sel].out);        
         }
         if(pullup) addconnection(connections[i],"PU");

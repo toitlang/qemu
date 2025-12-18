@@ -470,11 +470,12 @@ static void text_console_update(void *obj) {
         } else {
             if(out_sel==0x100) addconnection(connections[i],"Output");
         }
-        if(mux_func<5 && (mux_ie || oen_sel || out_sel==0x100)) {
+        if(mux_func<5 && mux_func!=1 /*&& (mux_ie || oen_sel || out_sel==0x100*/) {
             addconnection(connections[i],(char *)io_mux_pins[i].functions[mux_func]);
 //            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
         }
-        if(/*out_sel>=0 && */out_sel!=256 && op_en) {
+        printf("%d: %x %x %d %d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],op_en,mux_func);
+        if(/*out_sel>=0 && */out_sel!=256 && op_en && mux_func==1 && (mux_ie || op_en)) {
             addconnection(connections[i],gpio_matrix[out_sel].out);       
             //printf("%d: %x\n",i,out_sel);
         }
@@ -493,10 +494,6 @@ static void text_console_update(void *obj) {
             if(sig_sel) {
                 snprintf(str,32,"%s",gpio_matrix[i].in);
                 addconnection(connections[in_sel],str);
-            } else {
-                //uint32_t mux_ie=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_IE);
-                //uint32_t mux_func=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,MCU_SEL);
-                //addconnection(connections[in_sel],str);
             }
         }
         i++;
@@ -519,7 +516,7 @@ static const GraphicHwOps text_console_ops = {
 static uint64_t esp32_iomux_read(void *opaque, hwaddr addr, unsigned int size) {
     ESP32S3GPIOState *s = ESP32S3_GPIO(opaque);
     int n=addr/4;
-    if(n<N_GPIOS) {
+    if(n<N_GPIOS+1) {
         return s->iomux_regs[n];
     }
     return 0;
@@ -529,7 +526,7 @@ static void esp32_iomux_write(void *opaque, hwaddr addr, uint64_t value,
                              unsigned int size) {
     ESP32S3GPIOState *s = ESP32S3_GPIO(opaque);
     int n=addr/4;
-    if(n<N_GPIOS) {
+    if(n<N_GPIOS+1) {
         s->iomux_regs[n]=value;
     }
 }
