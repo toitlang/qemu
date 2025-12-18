@@ -442,7 +442,7 @@ static void text_console_update(void *obj) {
     }
 
     char str[32];
-    draw_string_x_y(surface, 0,0,(char *)"No I O Connections              Function",YELLOW);
+    draw_string_x_y(surface, 0,0,(char *)"No I O Connections",YELLOW);
     
     for(int i=0;i<N_GPIOS;i++) {
         connections[i][0]=0;
@@ -452,7 +452,7 @@ static void text_console_update(void *obj) {
         int in=((i<32)?s->gpio_in>>i:s->gpio_in1>>(i-32))&1;
         int out=((i<32)?s->gpio_out>>i:s->gpio_out1>>(i-32))&1;
 
-        int io_mux=(i-A_IO_MUX_BASE)/4;
+        int io_mux=i+1;
         uint32_t out_sel=FIELD_EX32(s->gpio_out_sel[i],GPIO_FUNC_OUT,SEL);
         uint32_t oen_sel=FIELD_EX32(s->gpio_out_sel[i],GPIO_FUNC_OUT,OEN_SEL);
         uint32_t mux_ie=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_IE);
@@ -470,10 +470,11 @@ static void text_console_update(void *obj) {
         } else {
             if(out_sel==0x100) addconnection(connections[i],"Output");
         }
-        if(mux_func<5 && (mux_ie || oen_sel)) {
-            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
+        if(mux_func<5 && (mux_ie || oen_sel || out_sel==0x100)) {
+            addconnection(connections[i],(char *)io_mux_pins[i].functions[mux_func]);
+//            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
         }
-        if(out_sel>0 && out_sel!=256 && op_en) {
+        if(/*out_sel>=0 && */out_sel!=256 && op_en) {
             addconnection(connections[i],gpio_matrix[out_sel].out);       
             //printf("%d: %x\n",i,out_sel);
         }
@@ -492,6 +493,10 @@ static void text_console_update(void *obj) {
             if(sig_sel) {
                 snprintf(str,32,"%s",gpio_matrix[i].in);
                 addconnection(connections[in_sel],str);
+            } else {
+                //uint32_t mux_ie=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_IE);
+                //uint32_t mux_func=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,MCU_SEL);
+                //addconnection(connections[in_sel],str);
             }
         }
         i++;
@@ -514,7 +519,7 @@ static const GraphicHwOps text_console_ops = {
 static uint64_t esp32_iomux_read(void *opaque, hwaddr addr, unsigned int size) {
     ESP32S3GPIOState *s = ESP32S3_GPIO(opaque);
     int n=addr/4;
-    if(n<49) {
+    if(n<N_GPIOS) {
         return s->iomux_regs[n];
     }
     return 0;
@@ -524,7 +529,7 @@ static void esp32_iomux_write(void *opaque, hwaddr addr, uint64_t value,
                              unsigned int size) {
     ESP32S3GPIOState *s = ESP32S3_GPIO(opaque);
     int n=addr/4;
-    if(n<49) {
+    if(n<N_GPIOS) {
         s->iomux_regs[n]=value;
     }
 }
@@ -634,21 +639,27 @@ static void ESP32S3_GPIO_write(void *opaque, hwaddr addr, uint64_t value,
     switch (addr) {
         case A_GPIO_OUT:
             s->gpio_out = value;
+            s->gpio_in = (s->gpio_in & ~s->gpio_enable) | (value & s->gpio_enable);
             break;
         case A_GPIO_OUT_W1TS:
             s->gpio_out |= value;
+            s->gpio_in |= value;
             break;
         case A_GPIO_OUT_W1TC:
             s->gpio_out &= ~value;
+            s->gpio_in &= ~value;
             break;
         case A_GPIO_OUT1:
             s->gpio_out1 = value;
+            s->gpio_in1 = (s->gpio_in1 & ~s->gpio_enable1) | (value & s->gpio_enable1);
             break;
         case A_GPIO_OUT1_W1TS:
             s->gpio_out1 |= value;
+            s->gpio_in1 |= value;
             break;
         case A_GPIO_OUT1_W1TC:
             s->gpio_out1 &= ~value;
+            s->gpio_in1 &= ~value;
             break;
         case A_GPIO_ENABLE:
         	s->gpio_enable = value;

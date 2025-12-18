@@ -32,7 +32,7 @@ typedef struct ESP32S3State {
     uint32_t gpio_in_sel[256];
     uint32_t gpio_out_sel[49];
     qemu_irq gpios[49];
-    uint32_t iomux_regs[49];
+    uint32_t iomux_regs[50];
     QemuConsole *con;
     uint32_t *data;
     uint32_t redraw;
