@@ -215,7 +215,7 @@ static Property esp32_wifi_properties[] = {
     DEFINE_PROP_END_OF_LIST(),
 };
 
-static void mydev_reset_enter(Object *obj, ResetType type)
+static void esp32_wifi_reset_enter(Object *obj, ResetType type)
 {
     Esp32WifiState *s = ESP32_WIFI(obj);
     if(s)
@@ -231,7 +231,7 @@ static void esp32_wifi_class_init(ObjectClass *klass, void *data)
     dc->desc = "Esp32 WiFi";
     device_class_set_props(dc, esp32_wifi_properties);
     ResettableClass *rc = RESETTABLE_CLASS(klass);
-    resettable_class_set_parent_phases(rc, mydev_reset_enter, NULL, NULL,
+    resettable_class_set_parent_phases(rc, esp32_wifi_reset_enter, NULL, NULL,
                                    &rp);
 }
 

@@ -15,6 +15,7 @@
 typedef struct ESP32S3State {
     SysBusDevice parent_obj;
     MemoryRegion iomem;
+    MemoryRegion iomuxmem;
     qemu_irq irq;
     uint32_t gpio_out;
     uint32_t gpio_out1;
@@ -31,6 +32,10 @@ typedef struct ESP32S3State {
     uint32_t gpio_in_sel[256];
     uint32_t gpio_out_sel[49];
     qemu_irq gpios[49];
+    uint32_t iomux_regs[49];
+    QemuConsole *con;
+    uint32_t *data;
+    uint32_t redraw;
 } ESP32S3GPIOState;
 
 typedef struct ESP32S3GPIOClass {
@@ -62,8 +67,20 @@ REG32(GPIO_STATUS1_W1TC, 0x0058)
 REG32(GPIO_CPU_INT, 0x005c)
 REG32(GPIO_CPU_INT1, 0x0068)
 REG32(GPIO_PIN_BASE,0x74)
+    FIELD(GPIO_PIN,INT_TYPE,7,3)
+    FIELD(GPIO_PIN,INT_ENABLE,13,5)
 REG32(GPIO_FUNC_IN_SEL_CFG_BASE,0x154)
+    FIELD(GPIO_FUNC_IN,SEL,0,6)
+    FIELD(GPIO_FUNC_IN,SIG_SEL,7,1)
 REG32(GPIO_FUNC_OUT_SEL_CFG_BASE,0x554)
+    FIELD(GPIO_FUNC_OUT,SEL,0,9)
+    FIELD(GPIO_FUNC_OUT,OEN_SEL,10,1)
+REG32(IO_MUX_BASE,0x4)
+    FIELD(IO_MUX,FUN_WPD,7,1)
+    FIELD(IO_MUX,FUN_WPU,8,1)
+    FIELD(IO_MUX,FUN_IE,9,1)
+    FIELD(IO_MUX,FUN_DRV,10,2)
+    FIELD(IO_MUX,MCU_SEL,12,3)
 
 #define ESP32_GPIOS "esp32_gpios"
 #define ESP32_GPIOS_IN "esp32_gpios_in"
