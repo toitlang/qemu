@@ -451,7 +451,7 @@ static void text_console_update(void *obj) {
     Esp32GpioState *s = ESP32_GPIO(obj);
     if(!s->redraw || !qemu_console_is_visible(QEMU_CONSOLE(s->con))) return;
     s->redraw=0;
-    char connections[40][32];
+    char connections[40][2][32];
     
     DisplaySurface *surface = qemu_console_surface(QEMU_CONSOLE(s->con));
     /* clear screen */
@@ -462,11 +462,12 @@ static void text_console_update(void *obj) {
         d1 += surface_stride(surface);
     }
 
-    char str[32];
+    char str[128];
     draw_string_x_y(surface, 0,0,(char *)"No I O Connections",YELLOW);
     
     for(int i=0;i<40;i++) {
-        connections[i][0]=0;
+        connections[i][0][0]=0;
+        connections[i][1][0]=0;
         snprintf(str,32,"%2d:",i);
         draw_string_x_y(surface, 0,i+1,str,WHITE);
         int op_en=((i<32)?s->gpio_enable>>i:s->gpio_enable1>>(i-32))&1;
@@ -486,22 +487,36 @@ static void text_console_update(void *obj) {
         draw_char_x_y(surface, 3,i+1,in?'1':'0',((oen_sel || mux_ie)&&!op_en)?GREEN:GREY);
         draw_char_x_y(surface, 5,i+1,out?'1':'0',((out_sel==0x100)&&op_en)?GREEN:GREY);
 
-        if(( mux_ie || oen_sel) && !op_en) {
-            addconnection(connections[i],"Input");
+        // if(( mux_ie || oen_sel) && !op_en) {
+        //     addconnection(connections[i],"Input");
+        // } else {
+        if(mux_func==2) {
+            if(out_sel==0x100 &&op_en) {
+                snprintf(str,32,"GPIO%2d",i);
+                addconnection(connections[i][0],str);
+            } else {
+                if(out_sel<229 && (op_en || oen_sel))
+                    addconnection(connections[i][0],gpio_matrix[out_sel].out);
+            }
         } else {
-            if(out_sel==0x100) addconnection(connections[i],"Output");
+            if(mux_func<6 && (op_en || oen_sel))
+                addconnection(connections[i][0],(char *)io_mux_pins[i].functions[mux_func]);
         }
-//        printf("%d: %x %x %d %d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],op_en,mux_func);
-        if(mux_func<6 && mux_func!=2/*&& (mux_ie || oen_sel || out_sel==0x100)*/) {
-            addconnection(connections[i],(char *)io_mux_pins[i].functions[mux_func]);
+        printf("%d: %x %x %d %d %d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],op_en,mux_func,mux_ie);
+      //  if(mux_func<6 && mux_func!=2/*&& (mux_ie || oen_sel || out_sel==0x100)*/) {
+       /*     addconnection(connections[i],(char *)io_mux_pins[i].functions[mux_func]);
 //            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
         }
         if(out_sel<229 && op_en && mux_func==2 && (mux_ie || op_en)) {
             addconnection(connections[i],gpio_matrix[out_sel].out);        
         }
-        if(pullup) addconnection(connections[i],"PU");
-        if(pulldown) addconnection(connections[i],"PD");
-        if(int_enable) addconnection(connections[i],int_types[int_type]);
+        */
+        if(mux_ie && !op_en /*&& mux_func!=2*/) {
+            addconnection(connections[i][1],(char *)io_mux_pins[i].functions[mux_func]);
+        }
+        if(pullup) addconnection(connections[i][1],"PU");
+        if(pulldown) addconnection(connections[i][1],"PD");
+        if(int_enable) addconnection(connections[i][1],int_types[int_type]);
     }
     
     int i=0;
@@ -509,16 +524,32 @@ static void text_console_update(void *obj) {
         int n=gpio_matrix[i].num;
         int in_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SEL);
         int sig_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SIG_SEL);
-        if(in_sel<40) {
+       // int io_mux=GPIO_PIN_MUX_REG_OFFSET[i]/4;
+       // uint32_t mux_func=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,MCU_SEL);
+        if(in_sel<40 /*&& mux_func==2*/) {
             if(sig_sel) {
                 snprintf(str,32,"%s",gpio_matrix[i].in);
-                addconnection(connections[in_sel],str);
+                addconnection(connections[in_sel][1],str);
+            } else {
+                if(in_sel>0) {
+                   // printf("%d %d %s\n",i,in_sel,io_mux_pins[in_sel].functions[mux_func]);
+                   // addconnection(connections[in_sel][1],(char *)io_mux_pins[in_sel].functions[mux_func]);
+                }
             }
         }
         i++;
     }
     for(i=0;i<40;i++) {
-        draw_string_x_y(surface, 7, i+1, connections[i],WHITE);
+        str[0]=0;
+        if(strlen(connections[i][0])!=0) {
+            strcat(str," Out:");
+            strcat((char *)str,(char *)(connections[i][0]));
+        }
+        if(strlen(connections[i][1])!=0) {
+            strcat(str," In:");
+            strcat(str,(char *)(connections[i][1]));
+        }
+        draw_string_x_y(surface, 6, i+1, str,WHITE);
     }
     dpy_gfx_update_full(QEMU_CONSOLE(s->con));
 }
