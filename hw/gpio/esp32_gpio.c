@@ -23,6 +23,7 @@
 #include "hw/gpio/esp32_gpio.h"
 #include "sysemu/runstate.h"
 
+#define N_GPIOS 40
 #define CONSOLE_WIDTH 320
 #define CONSOLE_HEIGHT 656
 
@@ -451,7 +452,7 @@ static void text_console_update(void *obj) {
     Esp32GpioState *s = ESP32_GPIO(obj);
     if(!s->redraw || !qemu_console_is_visible(QEMU_CONSOLE(s->con))) return;
     s->redraw=0;
-    char connections[40][2][32];
+    char connections[N_GPIOS][2][32];
     
     DisplaySurface *surface = qemu_console_surface(QEMU_CONSOLE(s->con));
     /* clear screen */
@@ -465,7 +466,7 @@ static void text_console_update(void *obj) {
     char str[128];
     draw_string_x_y(surface, 0,0,(char *)"No I O Connections",YELLOW);
     
-    for(int i=0;i<40;i++) {
+    for(int i=0;i<N_GPIOS;i++) {
         connections[i][0][0]=0;
         connections[i][1][0]=0;
         snprintf(str,32,"%2d:",i);
@@ -487,31 +488,21 @@ static void text_console_update(void *obj) {
         draw_char_x_y(surface, 3,i+1,in?'1':'0',((oen_sel || mux_ie)&&!op_en)?GREEN:GREY);
         draw_char_x_y(surface, 5,i+1,out?'1':'0',((out_sel==0x100)&&op_en)?GREEN:GREY);
 
-        // if(( mux_ie || oen_sel) && !op_en) {
-        //     addconnection(connections[i],"Input");
-        // } else {
         if(mux_func==2) {
-            if(out_sel==0x100 &&op_en) {
+            if(out_sel==0x100 && op_en) {
                 snprintf(str,32,"GPIO%2d",i);
                 addconnection(connections[i][0],str);
             } else {
-                if(out_sel<229 && (op_en || oen_sel))
+                if(out_sel<229 && op_en)
                     addconnection(connections[i][0],gpio_matrix[out_sel].out);
             }
         } else {
-            if(mux_func<6 && (op_en || oen_sel))
+            if(mux_func<6 && op_en)
                 addconnection(connections[i][0],(char *)io_mux_pins[i].functions[mux_func]);
         }
-        printf("%d: %x %x %d %d %d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],op_en,mux_func,mux_ie);
-      //  if(mux_func<6 && mux_func!=2/*&& (mux_ie || oen_sel || out_sel==0x100)*/) {
-       /*     addconnection(connections[i],(char *)io_mux_pins[i].functions[mux_func]);
-//            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
-        }
-        if(out_sel<229 && op_en && mux_func==2 && (mux_ie || op_en)) {
-            addconnection(connections[i],gpio_matrix[out_sel].out);        
-        }
-        */
-        if(mux_ie && !op_en /*&& mux_func!=2*/) {
+      //  printf("%d: out_sel=%x iomux=%x pin=%x op_en=%d oen_sel=%d mux_func=%d mix_ie=%d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],s->gpio_pin[i],op_en,oen_sel,mux_func,mux_ie);
+
+        if((oen_sel || mux_ie) && !op_en /*&& mux_func!=2*/) {
             addconnection(connections[i][1],(char *)io_mux_pins[i].functions[mux_func]);
         }
         if(pullup) addconnection(connections[i][1],"PU");
@@ -524,22 +515,15 @@ static void text_console_update(void *obj) {
         int n=gpio_matrix[i].num;
         int in_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SEL);
         int sig_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SIG_SEL);
-       // int io_mux=GPIO_PIN_MUX_REG_OFFSET[i]/4;
-       // uint32_t mux_func=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,MCU_SEL);
-        if(in_sel<40 /*&& mux_func==2*/) {
+        if(in_sel<N_GPIOS /*&& mux_func==2*/) {
             if(sig_sel) {
                 snprintf(str,32,"%s",gpio_matrix[i].in);
                 addconnection(connections[in_sel][1],str);
-            } else {
-                if(in_sel>0) {
-                   // printf("%d %d %s\n",i,in_sel,io_mux_pins[in_sel].functions[mux_func]);
-                   // addconnection(connections[in_sel][1],(char *)io_mux_pins[in_sel].functions[mux_func]);
-                }
-            }
+            } 
         }
         i++;
     }
-    for(i=0;i<40;i++) {
+    for(i=0;i<N_GPIOS;i++) {
         str[0]=0;
         if(strlen(connections[i][0])!=0) {
             strcat(str," Out:");
@@ -566,7 +550,7 @@ static const GraphicHwOps text_console_ops = {
 static uint64_t esp32_iomux_read(void *opaque, hwaddr addr, unsigned int size) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
     int n=addr/4;
-    if(n<40) {
+    if(n<N_GPIOS) {
         return s->iomux_regs[n];
     }
     return 0;
@@ -576,7 +560,7 @@ static void esp32_iomux_write(void *opaque, hwaddr addr, uint64_t value,
                              unsigned int size) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
     int n=addr/4;
-    if(n<40) {
+    if(n<N_GPIOS) {
         s->iomux_regs[n]=value;
     }
     //printf("IOMUX %lx %lx\n",addr,value);
@@ -586,8 +570,8 @@ static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
                              unsigned int size) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
     int clearirq;
-    uint32_t oldvalue;
-    oldvalue = s->gpio_out;
+    uint32_t oldvalue = s->gpio_out;
+    uint32_t oldvalue1 = s->gpio_out1;
     switch (addr) {
         case A_GPIO_OUT:
             s->gpio_out = value;
@@ -702,6 +686,15 @@ static void esp32_gpio_write(void *opaque, hwaddr addr, uint64_t value,
             }
         }
     }
+    if (s->gpio_out1 != oldvalue1) {
+        uint32_t diff = (s->gpio_out1 ^ oldvalue1);
+        for (int i = 0; i < 16; i++) {
+            if ((1 << i) & diff) {
+                qemu_set_irq(s->gpios[i+32], (s->gpio_out1 & (1 << i)) ? 1 : 0);
+            }
+        }
+    }
+
     
 }
 
@@ -718,13 +711,21 @@ static const MemoryRegionOps iomux_ops = {
 };
 
 static void esp32_gpio_reset(Object *dev, ResetType type) {
-  Esp32GpioState *s = ESP32_GPIO(dev);
-  for(int i=0;i<256;i++) {
-	s->gpio_in_sel[i]=0;
-   }
-  for(int i=0;i<40;i++) {
-	s->gpio_out_sel[i]=0;
-   }
+    Esp32GpioState *s = ESP32_GPIO(dev);
+    for(int i=0;i<256;i++) {
+        s->gpio_in_sel[i]=0;
+    }
+    for(int i=0;i<N_GPIOS;i++) {
+        s->gpio_out_sel[i]=0;
+        s->gpio_pin[i]=0;
+        s->iomux_regs[i+1]=0;
+    }
+    s->gpio_in = 0x1;
+    s->gpio_in1 = 0x8;
+    s->gpio_out = 0x0;
+    s->gpio_out1 = 0x0;
+    s->gpio_enable = 0x0;
+    s->gpio_enable1 = 0x0;
 }
 
 static void func_gpio(void *opaque, int n, int val) {
@@ -732,7 +733,7 @@ static void func_gpio(void *opaque, int n, int val) {
 	int func=(val>>1)&0x1ff;
 	int v=val & 1;
 	int param=((unsigned)val)>>10;
-	for(int i=0;i<40;i++) {
+	for(int i=0;i<N_GPIOS;i++) {
 		if((s->gpio_out_sel[i] & 0x1ff ) == func) {
 			qemu_set_irq(s->gpios[i], v+(param<<1));
 		}
@@ -768,7 +769,7 @@ static void esp32_gpio_init(Object *obj) {
     sysbus_init_irq(sbd, &s->irq);
     qdev_init_gpio_out_named(dev, &s->irq, SYSBUS_DEVICE_GPIO_IRQ, 1);
     qdev_init_gpio_out_named(dev, s->gpios, ESP32_GPIOS, 32);
-    qdev_init_gpio_in_named(dev, set_gpio, ESP32_GPIOS_IN, 40);
+    qdev_init_gpio_in_named(dev, set_gpio, ESP32_GPIOS_IN, N_GPIOS);
     qdev_init_gpio_in_named(dev, func_gpio, ESP32_GPIOS_FUNC,1);
     s->gpio_in = 0x1;
     s->gpio_in1 = 0x8;
