@@ -29,6 +29,7 @@ struct gpio_matrix_t {
 };
 
 #define N_GPIOS 49
+#define DIRECT_GPIO 1
 #define CONSOLE_WIDTH 320
 #define CONSOLE_HEIGHT (16*(N_GPIOS+1))
 
@@ -330,71 +331,73 @@ static const struct gpio_matrix_t gpio_matrix[] = {
 
 struct pin_mux {
     int         pinnum;
+    int         reset;
     const char* pinname;
     const char* functions[5];
+    
 };
 
 static const struct pin_mux io_mux_pins[] = {
-    { 0,  "GPIO0",  { "GPIO0",  "GPIO0",  "",        "",        "" } },
-    { 1,  "GPIO1",  { "GPIO1",  "GPIO1",  "",        "",        "" } },
-    { 2,  "GPIO2",  { "GPIO2",  "GPIO2",  "",        "",        "" } },
-    { 3,  "GPIO3",  { "GPIO3",  "GPIO3",  "",        "",        "" } },
-    { 4,  "GPIO4",  { "GPIO4",  "GPIO4",  "",        "",        "" } },
-    { 5,  "GPIO5",  { "GPIO5",  "GPIO5",  "",        "",        "" } },
-    { 6,  "GPIO6",  { "GPIO6",  "GPIO6",  "",        "",        "" } },
-    { 7,  "GPIO7",  { "GPIO7",  "GPIO7",  "",        "",        "" } },
+    { 0, 3, "GPIO0",  { "GPIO0",  "GPIO0",  "",        "",        "" } },
+    { 1, 1, "GPIO1",  { "GPIO1",  "GPIO1",  "",        "",        "" } },
+    { 2, 1, "GPIO2",  { "GPIO2",  "GPIO2",  "",        "",        "" } },
+    { 3, 1, "GPIO3",  { "GPIO3",  "GPIO3",  "",        "",        "" } },
+    { 4, 0, "GPIO4",  { "GPIO4",  "GPIO4",  "",        "",        "" } },
+    { 5, 0, "GPIO5",  { "GPIO5",  "GPIO5",  "",        "",        "" } },
+    { 6, 0, "GPIO6",  { "GPIO6",  "GPIO6",  "",        "",        "" } },
+    { 7, 0, "GPIO7",  { "GPIO7",  "GPIO7",  "",        "",        "" } },
 
-    { 8,  "GPIO8",  { "GPIO8",  "GPIO8",  "",        "SUBSPICS1", "" } },
-    { 9,  "GPIO9",  { "GPIO9",  "GPIO9",  "",        "SUBSPIHD",  "FSPIHD" } },
-    { 10, "GPIO10", { "GPIO10", "GPIO10", "FSPIIO4",   "SUBSPICS0", "FSPICS0" } },
-    { 11, "GPIO11", { "GPIO11", "GPIO11", "FSPIIO5",   "SUBSPID",   "FSPID" } },
-    { 12, "GPIO12", { "GPIO12", "GPIO12", "FSPIIO6",   "SUBSPICLK", "FSPICLK" } },
-    { 13, "GPIO13", { "GPIO13", "GPIO13", "FSPIIO7",   "SUBSPIQ",   "FSPIQ" } },
-    { 14, "GPIO14", { "GPIO14", "GPIO14", "FSPIDQS",   "SUBSPIWP",  "FSPIWP" } },
+    { 8, 0, "GPIO8",  { "GPIO8",  "GPIO8",  "",        "SUBSPICS1", "" } },
+    { 9, 1, "GPIO9",  { "GPIO9",  "GPIO9",  "",        "SUBSPIHD",  "FSPIHD" } },
+    { 10, 1,"GPIO10", { "GPIO10", "GPIO10", "FSPIIO4",   "SUBSPICS0", "FSPICS0" } },
+    { 11, 1,"GPIO11", { "GPIO11", "GPIO11", "FSPIIO5",   "SUBSPID",   "FSPID" } },
+    { 12, 1,"GPIO12", { "GPIO12", "GPIO12", "FSPIIO6",   "SUBSPICLK", "FSPICLK" } },
+    { 13, 1,"GPIO13", { "GPIO13", "GPIO13", "FSPIIO7",   "SUBSPIQ",   "FSPIQ" } },
+    { 14, 1,"GPIO14", { "GPIO14", "GPIO14", "FSPIDQS",   "SUBSPIWP",  "FSPIWP" } },
 
-    { 15, "XTAL_32K_P", { "GPIO15", "GPIO15", "U0RTS", "", "" } },
-    { 16, "XTAL_32K_N", { "GPIO16", "GPIO16", "U0CTS", "", "" } },
+    { 15, 0,"XTAL_32K_P", { "GPIO15", "GPIO15", "U0RTS", "", "" } },
+    { 16, 0,"XTAL_32K_N", { "GPIO16", "GPIO16", "U0CTS", "", "" } },
 
-    { 17, "GPIO17", { "GPIO17", "GPIO17", "U1TXD",  "", "" } },
-    { 18, "GPIO18", { "GPIO18", "GPIO18", "U1RXD",  "CLK_OUT3", "" } },
-    { 19, "GPIO19", { "GPIO19", "GPIO19", "U1RTS",  "CLK_OUT2", "" } },
-    { 20, "GPIO20", { "GPIO20", "GPIO20", "U1CTS",  "CLK_OUT1", "" } },
-    { 21, "GPIO21", { "GPIO21", "GPIO21", "",     "", "" } },
+    { 17, 1,"GPIO17", { "GPIO17", "GPIO17", "U1TXD",  "", "" } },
+    { 18, 1,"GPIO18", { "GPIO18", "GPIO18", "U1RXD",  "CLK_OUT3", "" } },
+    { 19, 0,"GPIO19", { "GPIO19", "GPIO19", "U1RTS",  "CLK_OUT2", "" } },
+    { 20, 0,"GPIO20", { "GPIO20", "GPIO20", "U1CTS",  "CLK_OUT1", "" } },
+    { 21, 0,"GPIO21", { "GPIO21", "GPIO21", "",     "", "" } },
 
-    { 22, "", { "", "" , "", "", "" } },
-    { 23, "", { "", "" , "", "", "" } },
-    { 24, "", { "", "" , "", "", "" } },
-    { 25, "", { "", "" , "", "", "" } },
+    { 22, 0,"", { "", "" , "", "", "" } },
+    { 23, 0,"", { "", "" , "", "", "" } },
+    { 24, 0,"", { "", "" , "", "", "" } },
+    { 25, 0,"", { "", "" , "", "", "" } },
 
-    { 26, "SPICS1", { "SPICS1", "GPIO26", "", "", "" } },
-    { 27, "SPIHD",  { "SPIHD",  "GPIO27", "", "", "" } },
-    { 28, "SPIWP",  { "SPIWP",  "GPIO28", "", "", "" } },
-    { 29, "SPICS0", { "SPICS0", "GPIO29", "", "", "" } },
-    { 30, "SPICLK", { "SPICLK", "GPIO30", "", "", "" } },
-    { 31, "SPIQ",   { "SPIQ",   "GPIO31", "", "", "" } },
-    { 32, "SPID",   { "SPID",   "GPIO32", "", "", "" } },
+    { 26, 3,"SPICS1", { "SPICS1", "GPIO26", "", "", "" } },
+    { 27, 3,"SPIHD",  { "SPIHD",  "GPIO27", "", "", "" } },
+    { 28, 3,"SPIWP",  { "SPIWP",  "GPIO28", "", "", "" } },
+    { 29, 3,"SPICS0", { "SPICS0", "GPIO29", "", "", "" } },
+    { 30, 3,"SPICLK", { "SPICLK", "GPIO30", "", "", "" } },
+    { 31, 3,"SPIQ",   { "SPIQ",   "GPIO31", "", "", "" } },
+    { 32, 3,"SPID",   { "SPID",   "GPIO32", "", "", "" } },
 
-    { 33, "GPIO33", { "GPIO33", "GPIO33", "FSPIHD",  "SUBSPIHD",  "SPIIO4" } },
-    { 34, "GPIO34", { "GPIO34", "GPIO34", "FSPICS0", "SUBSPICS0", "SPIIO5" } },
-    { 35, "GPIO35", { "GPIO35", "GPIO35", "FSPID",   "SUBSPID",   "SPIIO6" } },
-    { 36, "GPIO36", { "GPIO36", "GPIO36", "FSPICLK", "SUBSPICLK", "SPIIO7" } },
-    { 37, "GPIO37", { "GPIO37", "GPIO37", "FSPIQ",   "SUBSPIQ",   "SPIDQS" } },
-    { 38, "GPIO38", { "GPIO38", "GPIO38", "FSPIWP",  "SUBSPIWP",  "" } },
+    { 33, 1,"GPIO33", { "GPIO33", "GPIO33", "FSPIHD",  "SUBSPIHD",  "SPIIO4" } },
+    { 34, 1,"GPIO34", { "GPIO34", "GPIO34", "FSPICS0", "SUBSPICS0", "SPIIO5" } },
+    { 35, 1,"GPIO35", { "GPIO35", "GPIO35", "FSPID",   "SUBSPID",   "SPIIO6" } },
+    { 36, 1,"GPIO36", { "GPIO36", "GPIO36", "FSPICLK", "SUBSPICLK", "SPIIO7" } },
+    { 37, 1,"GPIO37", { "GPIO37", "GPIO37", "FSPIQ",   "SUBSPIQ",   "SPIDQS" } },
+    { 38, 1,"GPIO38", { "GPIO38", "GPIO38", "FSPIWP",  "SUBSPIWP",  "" } },
 
-    { 39, "MTCK", { "MTCK", "GPIO39", "CLK_OUT3", "SUBSPICS1", "" } },
-    { 40, "MTDO", { "MTDO", "GPIO40", "CLK_OUT2", "", "" } },
-    { 41, "MTDI", { "MTDI", "GPIO41", "CLK_OUT1", "", "" } },
-    { 42, "MTMS", { "MTMS", "GPIO42", "", "", "" } },
+    { 39, 1,"MTCK", { "MTCK", "GPIO39", "CLK_OUT3", "SUBSPICS1", "" } },
+    { 40, 1,"MTDO", { "MTDO", "GPIO40", "CLK_OUT2", "", "" } },
+    { 41, 1,"MTDI", { "MTDI", "GPIO41", "CLK_OUT1", "", "" } },
+    { 42, 1,"MTMS", { "MTMS", "GPIO42", "", "", "" } },
 
-    { 43, "U0TXD", { "U0TXD", "GPIO43", "CLK_OUT1", "", "" } },
-    { 44, "U0RXD", { "U0RXD", "GPIO44", "CLK_OUT2", "", "" } },
+    { 43, 4,"U0TXD", { "U0TXD", "GPIO43", "CLK_OUT1", "", "" } },
+    { 44, 3,"U0RXD", { "U0RXD", "GPIO44", "CLK_OUT2", "", "" } },
 
-    { 45, "GPIO45", { "GPIO45", "GPIO45", "", "", "" } },
-    { 46, "GPIO46", { "GPIO46", "GPIO46", "", "", "" } },
+    { 45, 2,"GPIO45", { "GPIO45", "GPIO45", "", "", "" } },
+    { 46, 2,"GPIO46", { "GPIO46", "GPIO46", "", "", "" } },
 
-    { 47, "SPICLK_P", { "SPICLK_P_DIFF", "GPIO47", "SUBSPICLK_P_DIFF", "", "" } },
-    { 48, "SPICLK_N", { "SPICLK_N_DIFF", "GPIO48", "SUBSPICLK_N_DIFF", "", "" } },
-    { -1, "", { "" } },
+    { 47, 1,"SPICLK_P", { "SPICLK_P_DIFF", "GPIO47", "SUBSPICLK_P_DIFF", "", "" } },
+    { 48, 1,"SPICLK_N", { "SPICLK_N_DIFF", "GPIO48", "SUBSPICLK_N_DIFF", "", "" } },
+    { -1, -1,"", { "" } },
 };
 
 static const char *int_types[8]={"No IRQ","IRQ Rising","IRQ Falling","IRQ Any","IRQ Low","IRQ High","",""} ;
@@ -430,7 +433,8 @@ static void text_console_update(void *obj) {
     ESP32S3GPIOState *s = ESP32S3_GPIO(obj);
     if(!s->redraw || !qemu_console_is_visible(QEMU_CONSOLE(s->con))) return;
     s->redraw=0;
-    char connections[N_GPIOS][32];
+
+        char connections[N_GPIOS][2][32];
     
     DisplaySurface *surface = qemu_console_surface(QEMU_CONSOLE(s->con));
     /* clear screen */
@@ -441,11 +445,12 @@ static void text_console_update(void *obj) {
         d1 += surface_stride(surface);
     }
 
-    char str[32];
+    char str[128];
     draw_string_x_y(surface, 0,0,(char *)"No I O Connections",YELLOW);
     
     for(int i=0;i<N_GPIOS;i++) {
-        connections[i][0]=0;
+        connections[i][0][0]=0;
+        connections[i][1][0]=0;
         snprintf(str,32,"%2d:",i);
         draw_string_x_y(surface, 0,i+1,str,WHITE);
         int op_en=((i<32)?s->gpio_enable>>i:s->gpio_enable1>>(i-32))&1;
@@ -465,24 +470,26 @@ static void text_console_update(void *obj) {
         draw_char_x_y(surface, 3,i+1,in?'1':'0',((oen_sel || mux_ie)&&!op_en)?GREEN:GREY);
         draw_char_x_y(surface, 5,i+1,out?'1':'0',((out_sel==0x100)&&op_en)?GREEN:GREY);
 
-        if(( mux_ie || oen_sel) && !op_en) {
-            addconnection(connections[i],"Input");
+        if(mux_func==DIRECT_GPIO) {
+            if(out_sel==0x100 && op_en) {
+                snprintf(str,32,"GPIO%2d",i);
+                addconnection(connections[i][0],str);
+            } else {
+                if(out_sel<229 && op_en)
+                    addconnection(connections[i][0],gpio_matrix[out_sel].out);
+            }
         } else {
-            if(out_sel==0x100) addconnection(connections[i],"Output");
+            if(mux_func<6 && op_en)
+                addconnection(connections[i][0],(char *)io_mux_pins[i].functions[mux_func]);
         }
-        if(mux_func<5 && mux_func!=1 /*&& (mux_ie || oen_sel || out_sel==0x100*/) {
-            addconnection(connections[i],(char *)io_mux_pins[i].functions[mux_func]);
-//            draw_string_x_y(surface, 32,i+1,(char *)io_mux_pins[i].functions[mux_func],WHITE);
+      //  printf("%d: out_sel=%x iomux=%x pin=%x op_en=%d oen_sel=%d mux_func=%d mix_ie=%d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],s->gpio_pin[i],op_en,oen_sel,mux_func,mux_ie);
+
+        if((oen_sel || mux_ie) && !op_en /*&& mux_func!=2*/) {
+            addconnection(connections[i][1],(char *)io_mux_pins[i].functions[mux_func]);
         }
-        printf("%d: %x %x %d %d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],op_en,mux_func);
-        if(/*out_sel>=0 && */out_sel!=256 && op_en && mux_func==1 && (mux_ie || op_en)) {
-            addconnection(connections[i],gpio_matrix[out_sel].out);       
-            //printf("%d: %x\n",i,out_sel);
-        }
-        if(pullup) addconnection(connections[i],"PU");
-        if(pulldown) addconnection(connections[i],"PD");
-        if(int_enable) addconnection(connections[i],int_types[int_type]);
-        //printf("%d: %x\n",i,out_sel);
+        if(pullup) addconnection(connections[i][1],"PU");
+        if(pulldown) addconnection(connections[i][1],"PD");
+        if(int_enable) addconnection(connections[i][1],int_types[int_type]);
     }
     
     int i=0;
@@ -490,16 +497,26 @@ static void text_console_update(void *obj) {
         int n=gpio_matrix[i].num;
         int in_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SEL);
         int sig_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SIG_SEL);
-        if(in_sel<N_GPIOS && in_sel>0) {
+      //  printf("%d %d %x\n",n,in_sel,sig_sel);
+        if(in_sel<N_GPIOS /*&& mux_func==2*/) {
             if(sig_sel) {
                 snprintf(str,32,"%s",gpio_matrix[i].in);
-                addconnection(connections[in_sel],str);
-            }
+                addconnection(connections[in_sel][1],str);
+            } 
         }
         i++;
     }
     for(i=0;i<N_GPIOS;i++) {
-        draw_string_x_y(surface, 7, i+1, connections[i],WHITE);
+        str[0]=0;
+        if(strlen(connections[i][0])!=0) {
+            strcat(str," Out:");
+            strcat((char *)str,(char *)(connections[i][0]));
+        }
+        if(strlen(connections[i][1])!=0) {
+            strcat(str," In:");
+            strcat(str,(char *)(connections[i][1]));
+        }
+        draw_string_x_y(surface, 6, i+1, str,WHITE);
     }
     dpy_gfx_update_full(QEMU_CONSOLE(s->con));
 }
@@ -576,6 +593,10 @@ static uint64_t ESP32S3_GPIO_read(void *opaque, hwaddr addr, unsigned int size) 
             break;
         case A_GPIO_FUNC_OUT_SEL_CFG_BASE ... A_GPIO_FUNC_OUT_SEL_CFG_BASE+N_GPIOS*4-4:
             r = s->gpio_out_sel[(addr - A_GPIO_FUNC_OUT_SEL_CFG_BASE) / 4];
+            break;
+        case A_GPIO_DATE:
+            r = 0x1907040;
+            break;
         default:
             break;
     }
@@ -734,6 +755,7 @@ static void ESP32S3_GPIO_write(void *opaque, hwaddr addr, uint64_t value,
             break;
         case A_GPIO_FUNC_IN_SEL_CFG_BASE ... A_GPIO_FUNC_OUT_SEL_CFG_BASE-4:
             s->gpio_in_sel[(addr - A_GPIO_FUNC_IN_SEL_CFG_BASE)/4] = value;
+//            printf("gpio_in_sel %lx %lx\n",(addr - A_GPIO_FUNC_IN_SEL_CFG_BASE)/4,value);
             break;
         case A_GPIO_FUNC_OUT_SEL_CFG_BASE ... A_GPIO_FUNC_OUT_SEL_CFG_BASE+N_GPIOS*4-4:
 //            printf("gpio_out_sel %lx %lx\n",(addr - A_GPIO_FUNC_OUT_SEL_CFG_BASE)/4,value);
@@ -783,14 +805,28 @@ static const MemoryRegionOps iomux_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void ESP32S3_GPIO_reset(DeviceState *dev) {
-  ESP32S3GPIOState *s = ESP32S3_GPIO(dev);
-  for(int i=0;i<256;i++) {
-        s->gpio_in_sel[i]=0;
-   }
-  for(int i=0;i<N_GPIOS;i++) {
+static void ESP32S3_GPIO_reset(Object *dev, ResetType type) {
+    ESP32S3GPIOState *s = ESP32S3_GPIO(dev);
+    for(int i=0;i<256;i++) {
+        s->gpio_in_sel[i]=0x3c;
+    }
+    for(int i=0;i<N_GPIOS;i++) {
         s->gpio_out_sel[i]=0;
-   }
+    }
+    for(int i=0;i<N_GPIOS;i++) {
+        uint32_t v=0;
+        int reset_type=io_mux_pins[i].reset;
+        if(reset_type==1 || reset_type==2 || reset_type==3) {
+            v=FIELD_DP32(v,IO_MUX,FUN_IE,1);
+        }
+        if(reset_type==2) v=FIELD_DP32(v,IO_MUX,FUN_WPD,1);
+        if(reset_type==3 || reset_type==4) v=FIELD_DP32(v,IO_MUX,FUN_WPU,1);
+        if(reset_type==4) {
+            if(i<32) s->gpio_enable=1<<i; else s->gpio_enable1=1<<(i-32);
+        }
+        s->iomux_regs[i+1]=v;
+    }
+    printf("Reset\n");
 }
 
 static void esp32_gpio_realize(DeviceState *dev, Error **errp) {   
@@ -834,7 +870,9 @@ static Property ESP32S3_GPIO_properties[] = {
 static void esp32s3_gpio_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
-    dc->legacy_reset = ESP32S3_GPIO_reset;
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
+
+    rc->phases.enter = ESP32S3_GPIO_reset;
     dc->realize = esp32_gpio_realize;;
     device_class_set_props(dc, ESP32S3_GPIO_properties);
 }

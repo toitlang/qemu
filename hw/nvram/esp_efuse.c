@@ -326,8 +326,16 @@ static uint64_t esp_efuse_read(void *opaque, hwaddr addr, unsigned int size)
 #if EFUSE_DEBUG
     info_report("[EFUSE] Reading 0x%08lx (size: %d)", addr, size);
 #endif
+    int clk=30,q=31,d=32,cs1=26,hd=27,wp=28,cs0=29,d4=33,d5=34,d6=35,d7=36,dqs=37;
     if(addr==0x44) return 0x00c40a24;//0xC4000110;
-    if(addr==0x48) return 0xfe1001;//0xfe240A;
+    if(addr==0x48) return 0xe1001 | (clk<<16) | (q<<22) | (d<<28);//0xfe240A;
+
+
+    if(addr==0x4c) return (cs0<<0) | (cs1<<2) | (hd<<8) | (wp<<14) |  (dqs<<20) | (d4<<26);
+    if(addr==0x50) return 0x2040000 | (d5) | (d6<<6) | (d7<<12);
+    if(addr==0x54) return 0x8260;
+    if(addr==0x3c) return 0x80000100;
+    
     
 
     /* Check if the programming cmd block is being written */

@@ -24,6 +24,7 @@
 #include "sysemu/runstate.h"
 
 #define N_GPIOS 40
+#define DIRECT_GPIO 2
 #define CONSOLE_WIDTH 320
 #define CONSOLE_HEIGHT 656
 
@@ -259,50 +260,51 @@ static const char *int_types[8]={"","IRQ Rising","IRQ Falling","IRQ Any","IRQ Lo
 
 struct pin_mux {
     int         pinnum;
+    int         reset;
     const char* pinname;
     const char* functions[6];
 } io_mux_pins[] = {
-    { 0, "GPIO0", { "GPIO0", "CLK_OUT1", "GPIO0", "-", "-", "EMAC_TX_CLK" } },
-    { 1, "U0TXD", { "U0TXD", "CLK_OUT3", "GPIO1", "-", "-", "EMAC_RXD2" } },
-    { 2, "GPIO2", { "GPIO2", "HSPIWP", "GPIO2", "HS2_DATA0", "SD_DATA0", "-" } },
-    { 3, "U0RXD", { "U0RXD", "CLK_OUT2", "GPIO3", "-", "-", "-" } },
-    { 4, "GPIO4", { "GPIO4", "HSPIHD", "GPIO4", "HS2_DATA1", "SD_DATA1", "EMAC_TX_ER" } },
-    { 5, "GPIO5", { "GPIO5", "VSPICS0", "GPIO5", "HS1_DATA6", "-", "EMAC_RX_CLK" } },
-    { 6, "SD_CLK", { "SD_CLK", "SPICLK", "GPIO6", "HS1_CLK", "U1CTS", "-" } },
-    { 7, "SD_DATA_0", { "SD_DATA0", "SPIQ", "GPIO7", "HS1_DATA0", "U2RTS", "-" } },
-    { 8, "SD_DATA_1", { "SD_DATA1", "SPID", "GPIO8", "HS1_DATA1", "U2CTS", "-" } },
-    { 9, "SD_DATA_2", { "SD_DATA2", "SPIHD", "GPIO9", "HS1_DATA2", "U1RXD", "-" } },
-    { 10, "SD_DATA_3", { "SD_DATA3", "SPIWP", "GPIO10", "HS1_DATA3", "U1TXD", "-" } },
-    { 11, "SD_CMD", { "SD_CMD", "SPICS0", "GPIO11", "HS1_CMD", "U1RTS", "-" } },
-    { 12, "MTDI", { "MTDI", "HSPIQ", "GPIO12", "HS2_DATA2", "SD_DATA2", "EMAC_TXD3" } },
-    { 13, "MTCK", { "MTCK", "HSPID", "GPIO13", "HS2_DATA3", "SD_DATA3", "EMAC_RX_ER" } },
-    { 14, "MTMS", { "MTMS", "HSPICLK", "GPIO14", "HS2_CLK", "SD_CLK", "EMAC_TXD2" } },
-    { 15, "MTDO", { "MTDO", "HSPICS0", "GPIO15", "HS2_CMD", "SD_CMD", "EMAC_RXD3" } },
-    { 16, "GPIO16", { "GPIO16", "-", "GPIO16", "HS1_DATA4", "U2RXD", "EMAC_CLK_OUT1" } },
-    { 17, "GPIO17", { "GPIO17", "-", "GPIO17", "HS1_DATA5", "U2TXD", "EMAC_CLK_1801" } },
-    { 18, "GPIO18", { "GPIO18", "VSPICLK", "GPIO18", "HS1_DATA7", "-", "-" } },
-    { 19, "GPIO19", { "GPIO19", "VSPIQ", "GPIO19", "U0CTS", "-", "EMAC_TXD0" } },
-    { 19, "GPIO20", { "GPIO20", "-", "-", "-", "-", "-" } },
-    { 21, "GPIO21", { "GPIO21", "VSPIHD", "GPIO21", "-", "-", "EMAC_TX_EN" } },
-    { 22, "GPIO22", { "GPIO22", "VSPIWP", "GPIO22", "U0RTS", "-", "EMAC_TXD1" } },
-    { 23, "GPIO23", { "GPIO23", "VSPID", "GPIO23", "HS1_STROBE", "-", "-" } },
-    { 24, "GPIO24", { "GPIO24", "-", "-", "-", "-", "-" } },
-    { 25, "GPIO25", { "GPIO25", "-", "GPIO25", "-", "-", "EMAC_RXD0" } },
-    { 26, "GPIO26", { "GPIO26", "-", "GPIO26", "-", "-", "EMAC_RXD1" } },
-    { 27, "GPIO27", { "GPIO27", "-", "GPIO27", "-", "-", "EMAC_RX_DV" } },
-    { 28, "GPIO28", { "GPIO28", "-", "-", "-", "-", "-" } },
-    { 29, "GPIO29", { "GPIO29", "-", "-", "-", "-", "-" } },
-    { 30, "GPIO30", { "GPIO30", "-", "-", "-", "-", "-" } },
-    { 31, "GPIO31", { "GPIO31", "-", "-", "-", "-", "-" } },
-    { 32, "32K_XP", { "GPIO32", "-", "GPIO32", "-", "-", "-" } },
-    { 33, "32K_XN", { "GPIO33", "-", "GPIO33", "-", "-", "-" } },
-    { 34, "VDET_1", { "GPIO34", "-", "GPIO34", "-", "-", "-" } },
-    { 35, "VDET_2", { "GPIO35", "-", "GPIO35", "-", "-", "-" } },
-    { 36, "SENSOR_VP", { "GPIO36", "-", "GPIO36", "-", "-", "-" } },
-    { 37, "SENSOR_CAPP", { "GPIO37", "-", "GPIO37", "-", "-", "-" } },
-    { 38, "SENSOR_CAPN", { "GPIO38", "-", "GPIO38", "-", "-", "-" } },
-    { 39, "SENSOR_VN", { "GPIO39", "-", "GPIO39", "-", "-", "-" } },
-    { -1, "", { "" } },
+    { 0, 3,"GPIO0", { "GPIO0", "CLK_OUT1", "GPIO0", "-", "-", "EMAC_TX_CLK" } },
+    { 1, 3,"U0TXD", { "U0TXD", "CLK_OUT3", "GPIO1", "-", "-", "EMAC_RXD2" } },
+    { 2, 2,"GPIO2", { "GPIO2", "HSPIWP", "GPIO2", "HS2_DATA0", "SD_DATA0", "-" } },
+    { 3, 3,"U0RXD", { "U0RXD", "CLK_OUT2", "GPIO3", "-", "-", "-" } },
+    { 4, 2,"GPIO4", { "GPIO4", "HSPIHD", "GPIO4", "HS2_DATA1", "SD_DATA1", "EMAC_TX_ER" } },
+    { 5, 3,"GPIO5", { "GPIO5", "VSPICS0", "GPIO5", "HS1_DATA6", "-", "EMAC_RX_CLK" } },
+    { 6, 3,"SD_CLK", { "SD_CLK", "SPICLK", "GPIO6", "HS1_CLK", "U1CTS", "-" } },
+    { 7, 3,"SD_DATA_0", { "SD_DATA0", "SPIQ", "GPIO7", "HS1_DATA0", "U2RTS", "-" } },
+    { 8, 3,"SD_DATA_1", { "SD_DATA1", "SPID", "GPIO8", "HS1_DATA1", "U2CTS", "-" } },
+    { 9, 3,"SD_DATA_2", { "SD_DATA2", "SPIHD", "GPIO9", "HS1_DATA2", "U1RXD", "-" } },
+    { 10, 3,"SD_DATA_3", { "SD_DATA3", "SPIWP", "GPIO10", "HS1_DATA3", "U1TXD", "-" } },
+    { 11, 3,"SD_CMD", { "SD_CMD", "SPICS0", "GPIO11", "HS1_CMD", "U1RTS", "-" } },
+    { 12, 2,"MTDI", { "MTDI", "HSPIQ", "GPIO12", "HS2_DATA2", "SD_DATA2", "EMAC_TXD3" } },
+    { 13, 2,"MTCK", { "MTCK", "HSPID", "GPIO13", "HS2_DATA3", "SD_DATA3", "EMAC_RX_ER" } },
+    { 14, 3,"MTMS", { "MTMS", "HSPICLK", "GPIO14", "HS2_CLK", "SD_CLK", "EMAC_TXD2" } },
+    { 15, 3,"MTDO", { "MTDO", "HSPICS0", "GPIO15", "HS2_CMD", "SD_CMD", "EMAC_RXD3" } },
+    { 16, 1,"GPIO16", { "GPIO16", "-", "GPIO16", "HS1_DATA4", "U2RXD", "EMAC_CLK_OUT1" } },
+    { 17, 1,"GPIO17", { "GPIO17", "-", "GPIO17", "HS1_DATA5", "U2TXD", "EMAC_CLK_1801" } },
+    { 18, 1,"GPIO18", { "GPIO18", "VSPICLK", "GPIO18", "HS1_DATA7", "-", "-" } },
+    { 19, 1,"GPIO19", { "GPIO19", "VSPIQ", "GPIO19", "U0CTS", "-", "EMAC_TXD0" } },
+    { 19, 1,"GPIO20", { "GPIO20", "-", "-", "-", "-", "-" } },
+    { 21, 1,"GPIO21", { "GPIO21", "VSPIHD", "GPIO21", "-", "-", "EMAC_TX_EN" } },
+    { 22, 1,"GPIO22", { "GPIO22", "VSPIWP", "GPIO22", "U0RTS", "-", "EMAC_TXD1" } },
+    { 23, 1,"GPIO23", { "GPIO23", "VSPID", "GPIO23", "HS1_STROBE", "-", "-" } },
+    { 24, 0,"GPIO24", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 25, 0,"GPIO25", { "GPIO25", "-", "GPIO25", "-", "-", "EMAC_RXD0" } },
+    { 26, 0,"GPIO26", { "GPIO26", "-", "GPIO26", "-", "-", "EMAC_RXD1" } },
+    { 27, 0,"GPIO27", { "GPIO27", "-", "GPIO27", "-", "-", "EMAC_RX_DV" } },
+    { 28, 0,"GPIO28", { "GPIO28", "-", "-", "-", "-", "-" } },
+    { 29, 0,"GPIO29", { "GPIO29", "-", "-", "-", "-", "-" } },
+    { 30, 0,"GPIO30", { "GPIO30", "-", "-", "-", "-", "-" } },
+    { 31, 0,"GPIO31", { "GPIO31", "-", "-", "-", "-", "-" } },
+    { 32, 0,"32K_XP", { "GPIO32", "-", "GPIO32", "-", "-", "-" } },
+    { 33, 0,"32K_XN", { "GPIO33", "-", "GPIO33", "-", "-", "-" } },
+    { 34, 0,"VDET_1", { "GPIO34", "-", "GPIO34", "-", "-", "-" } },
+    { 35, 0,"VDET_2", { "GPIO35", "-", "GPIO35", "-", "-", "-" } },
+    { 36, 0,"SENSOR_VP", { "GPIO36", "-", "GPIO36", "-", "-", "-" } },
+    { 37, 0,"SENSOR_CAPP", { "GPIO37", "-", "GPIO37", "-", "-", "-" } },
+    { 38, 0,"SENSOR_CAPN", { "GPIO38", "-", "GPIO38", "-", "-", "-" } },
+    { 39, 0,"SENSOR_VN", { "GPIO39", "-", "GPIO39", "-", "-", "-" } },
+    { -1, 0,"", { "" } },
 };
 static const uint8_t GPIO_PIN_MUX_REG_OFFSET[] = {
     0x44,0x88,0x40,0x84,0x48,0x6c,0x60,0x64,0x68,0x54,0x58,0x5c,0x34,0x38,0x30,0x3c,
@@ -488,7 +490,7 @@ static void text_console_update(void *obj) {
         draw_char_x_y(surface, 3,i+1,in?'1':'0',((oen_sel || mux_ie)&&!op_en)?GREEN:GREY);
         draw_char_x_y(surface, 5,i+1,out?'1':'0',((out_sel==0x100)&&op_en)?GREEN:GREY);
 
-        if(mux_func==2) {
+        if(mux_func==DIRECT_GPIO) {
             if(out_sel==0x100 && op_en) {
                 snprintf(str,32,"GPIO%2d",i);
                 addconnection(connections[i][0],str);
@@ -516,7 +518,12 @@ static void text_console_update(void *obj) {
         int in_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SEL);
         int sig_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SIG_SEL);
         if(in_sel<N_GPIOS /*&& mux_func==2*/) {
-            if(sig_sel) {
+      //      uint32_t oen_sel=FIELD_EX32(s->gpio_out_sel[in_sel],GPIO_FUNC_OUT,OEN_SEL);
+      //      uint32_t io_mux=GPIO_PIN_MUX_REG_OFFSET[in_sel]/4;
+      //      uint32_t mux_ie=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_IE);
+      //      int op_en=((i<32)?s->gpio_enable>>i:s->gpio_enable1>>(i-32))&1;
+            
+            if(sig_sel/* && (!oen_sel ||(oen_sel && !op_en)) && mux_ie*/) {
                 snprintf(str,32,"%s",gpio_matrix[i].in);
                 addconnection(connections[in_sel][1],str);
             } 
@@ -713,13 +720,21 @@ static const MemoryRegionOps iomux_ops = {
 static void esp32_gpio_reset(Object *dev, ResetType type) {
     Esp32GpioState *s = ESP32_GPIO(dev);
     for(int i=0;i<256;i++) {
-        s->gpio_in_sel[i]=0;
+        s->gpio_in_sel[i]=0x30;
     }
     for(int i=0;i<N_GPIOS;i++) {
         s->gpio_out_sel[i]=0;
         s->gpio_pin[i]=0;
-        s->iomux_regs[i+1]=0;
+        int reset_type=io_mux_pins[i].reset;
+        int v=0x800;
+        if(reset_type==1 || reset_type==2 || reset_type==3) {
+            v=FIELD_DP32(v,IO_MUX,FUN_IE,1);
+        }
+        if(reset_type==2) v=FIELD_DP32(v,IO_MUX,FUN_WPD,1);
+        if(reset_type==3 || reset_type==4) v=FIELD_DP32(v,IO_MUX,FUN_WPU,1);
+        s->iomux_regs[GPIO_PIN_MUX_REG_OFFSET[i]/4]=v;
     }
+
     s->gpio_in = 0x1;
     s->gpio_in1 = 0x8;
     s->gpio_out = 0x0;
