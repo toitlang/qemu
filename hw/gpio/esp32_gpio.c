@@ -438,12 +438,11 @@ static void draw_string_x_y(DisplaySurface *surface, int x, int y, char *s,  pix
         draw_char_x_y(surface,x++,y,*s++,fgcol);
     }
 }
-
-static void addconnection(char *connection,const char *str) {
-    if(strlen(connection)>1) {
-        strncat(connection,",",32);
+static void addconnection(char connection[32],const char str[]) {
+    if(strlen(connection)>1 && (strlen(str)+strlen(connection))<32) {
+        strncat(connection,",",31);
     }
-    strncat(connection,str,32);
+    strncat(connection,str,31);
 }
 static const pixman_color_t WHITE=QEMU_PIXMAN_COLOR(0xff, 0xff, 0xff);
 static const pixman_color_t GREEN=QEMU_PIXMAN_COLOR(0x00, 0xff, 0x00);
