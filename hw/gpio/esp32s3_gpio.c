@@ -484,7 +484,7 @@ static void text_console_update(void *obj) {
         }
       //  printf("%d: out_sel=%x iomux=%x pin=%x op_en=%d oen_sel=%d mux_func=%d mix_ie=%d\n",i,s->gpio_out_sel[i],s->iomux_regs[io_mux],s->gpio_pin[i],op_en,oen_sel,mux_func,mux_ie);
 
-        if((oen_sel || mux_ie) && !op_en /*&& mux_func!=2*/) {
+        if((oen_sel || mux_ie) && !op_en && mux_func!=DIRECT_GPIO) {
             addconnection(connections[i][1],(char *)io_mux_pins[i].functions[mux_func]);
         }
         if(pullup) addconnection(connections[i][1],"PU");
@@ -826,7 +826,6 @@ static void ESP32S3_GPIO_reset(Object *dev, ResetType type) {
         }
         s->iomux_regs[i+1]=v;
     }
-    printf("Reset\n");
 }
 
 static void esp32_gpio_realize(DeviceState *dev, Error **errp) {   
