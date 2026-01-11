@@ -31,6 +31,13 @@ static void sleep_timer_cb(void *opaque)
     printf("sleep_timer_cb\n");
     s->wakeup_state_reg = FIELD_DP32(s->wakeup_state_reg, RTC_CNTL_WAKEUP_STATE, WAKEUP_CAUSE, 4); // ESP_SLEEP_WAKEUP_TIMER
     qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
+    if(FIELD_EX32(s->sdio_conf,RTC_CNTL_SDIO_CONF,VREG_PD_EN)) {
+        for (int i = 0; i < ESP32_CPU_COUNT; ++i) {
+            s->reset_cause[i] = ESP32_DEEPSLEEP_RESET;
+        }
+        qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+        s->sdio_conf=FIELD_DP32(s->sdio_conf,RTC_CNTL_SDIO_CONF,VREG_PD_EN,0);
+    }
 }
 
 static uint64_t esp32_rtc_cntl_read(void *opaque, hwaddr addr, unsigned int size)

@@ -95,6 +95,16 @@ static void remove_cpu_watchpoints(XtensaCPU* xcs)
     }
 }
 
+static void esp32_full_reset(void *opaque, int n, int level)
+{
+    Esp32SocState *s = ESP32_SOC(opaque);
+    if (level) {
+        for (int i = 0; i < ESP32_CPU_COUNT; ++i) {
+            s->rtc_cntl.reset_cause[i] = ESP32_SW_CPU_RESET;
+        }
+        qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+    }
+}
 static void esp32_dig_reset(void *opaque, int n, int level)
 {
     Esp32SocState *s = ESP32_SOC(opaque);
@@ -659,6 +669,11 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
     qdev_connect_gpio_out_named(disp1, "buttons", 0, in0);
     qdev_connect_gpio_out_named(disp1, "buttons", 1, in35);
 
+    qdev_connect_gpio_out_named(disp, "reset", 0,
+                                    qdev_get_gpio_in_named(dev, "full_reset", 0));
+
+
+
     /* Emulation of a fake register used to mark that the chip is run via QEMU */
     MemoryRegion *apbctrl_mem = g_new(MemoryRegion, 1);
     memory_region_init_ram(apbctrl_mem, NULL, "esp32.apbctrl_date_reg", 8 /* bytes */, &error_fatal);
@@ -801,6 +816,7 @@ static void esp32_soc_init(Object *obj)
     qdev_init_gpio_in_named(DEVICE(s), esp32_rtc_reset, ESP32_RTCIO_RESET_GPIO, 1);
     qdev_init_gpio_in_named(DEVICE(s), esp32_timg_cpu_reset, ESP32_TIMG_WDT_CPU_RESET_GPIO, 2);
     qdev_init_gpio_in_named(DEVICE(s), esp32_timg_sys_reset, ESP32_TIMG_WDT_SYS_RESET_GPIO, 2);
+    qdev_init_gpio_in_named(DEVICE(s), esp32_full_reset, "full_reset", 1);
 
 }
 
