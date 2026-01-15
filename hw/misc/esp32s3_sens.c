@@ -17,12 +17,13 @@
 #include "hw/sysbus.h"
 #include "hw/misc/esp32s3_sens.h"
 
-extern int touch_sensor[14];
+//extern int touch_sensor[14];
 
-extern uint32_t temp;
+static uint32_t temp;
 
 static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
 {
+    static int touch_sensor[14];
 //Esp32S3SensState *s = ESP32S3_SENS(opaque);
     uint32_t r = 0;
 //    printf("esp32_sens_read %lx\n",addr);

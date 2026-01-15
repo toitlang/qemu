@@ -34,6 +34,7 @@ static void esp32_intmatrix_irq_handler(void *opaque, int n, int level)
         int out_index = IRQ_MAP(i, n);
         for (int int_index = 0; int_index < s->cpu[i]->env.config->nextint; ++int_index) {
             if (s->cpu[i]->env.config->extint[int_index] == out_index) {
+ //               printf("esp32_intmatrix_irq_handler %x %x %x\n",n,out_index,level);
                 qemu_set_irq(s->outputs[i][int_index], level);
                 break;
             }

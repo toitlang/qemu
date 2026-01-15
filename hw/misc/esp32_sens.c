@@ -1,5 +1,5 @@
 /*
- * ESP32 Random Number Generator peripheral
+ * ESP32 Sens peripheral
  *
  * Copyright (c) 2019 Espressif Systems (Shanghai) Co. Ltd.
  *
@@ -16,42 +16,56 @@
 #include "hw/hw.h"
 #include "hw/sysbus.h"
 #include "hw/misc/esp32_sens.h"
-
-int touch_sensor[14];
-
-uint32_t temp;
+#include "hw/irq.h"
 
 static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
 {
-//Esp32SensState *s = ESP32_SENS(opaque);
+    Esp32SensState *s = ESP32_SENS(opaque);
     uint32_t r = 0;
-//    printf("esp32_sens_read %lx\n",addr);
+    
     switch(addr) {
-    case 0x54:
-        return 0x10000+2800+rand()%4;
-   case 0x50:
-    return temp | (1<<8);
-    case 0x84:
-	return (1<<10);
+    case A_SENS_SAR_MEAS_START1:
+        r = 0x10000+2800+rand()%4;
+        break;
+    case A_SENS_SAR_I2C_CTRL:
+        r = s->i2c_ctrl | (1<<8);
+        break;
+    case A_SENS_SAR_TOUCH_CTRL2:
+        r = (1<<10);
+        break;
+    case A_SENS_SAR_START_FORCE:
+        r = s->sar_start_force;
+        break;
+    case A_SENS_SAR_TOUCH_OUT1 ... A_SENS_SAR_TOUCH_OUT1+4*4:
+        int n1=((addr-A_SENS_SAR_TOUCH_OUT1)/4)*2;
+        r = ((1500-s->touch_sensor[n1]+rand()%20)<<16) | (1500-s->touch_sensor[n1+1]+rand()%20);
+        break;
+    case A_SENS_ULP_CP_SLEEP_CYC0 ... A_SENS_ULP_CP_SLEEP_CYC0+4*4:
+        r = s->ulp_sleep_cyc[(addr-A_SENS_ULP_CP_SLEEP_CYC0)/4];
+        break;
     }
-// 2=gpio2, 3=gpio15, 4=gpio14(13?), 5=gpio12, 7=gpio27, 8=gpio33, 9=gpio32
-// land +/- 300: 2=12166,31743 15=13618,31585 13=15277,31743 12=16798,31743 27=18388,3071 33=13791,2993 32=12166,2914
-// port	       : 2=1417,12132  15=1339,13791  13=1496,15312  12=1417,16694  27=30010,18388 33=30088,13860 32=30010,12201
-    if(addr>=0x70 && addr<0x84) {
-	int n1=((addr-0x70)/4)*2;
-        return ((1500-touch_sensor[n1]+rand()%20)<<16) | (1500-touch_sensor[n1+1]+rand()%20);
-    }
-
-//    qemu_guest_getrandom_nofail(&r, sizeof(r));
+  //  printf("esp32_sens_read %lx=%x\n",addr,r);
     return r;
 }
 
 static void esp32_sens_write(void *opaque, hwaddr addr, uint64_t value,
                                  unsigned int size) {
-  //  Esp32SensState *s = ESP32_SENS(opaque);
-   if(addr==0x50)
-         temp=(uint32_t)value;
-//    printf("esp32_sens_write %ld %ld\n",addr, value);
+    Esp32SensState *s = ESP32_SENS(opaque);
+//    printf("esp32_sens_write %lx=%lx\n",addr,value);
+    switch(addr) {
+    case A_SENS_SAR_I2C_CTRL:
+        s->i2c_ctrl=(uint32_t)value;
+        break;
+    case A_SENS_ULP_CP_SLEEP_CYC0 ... A_SENS_ULP_CP_SLEEP_CYC0+4*4:
+        s->ulp_sleep_cyc[(addr-A_SENS_ULP_CP_SLEEP_CYC0)/4]=(uint32_t)value;
+        break;
+    case A_SENS_SAR_START_FORCE:
+        s->sar_start_force=value;
+        qemu_set_irq(s->start_ulp,value);
+        if(value==0)
+            s->ulp_sleep_cyc[0]=200;
+        break;
+    }
 }
 
 static const MemoryRegionOps esp32_sens_ops = {
@@ -67,7 +81,9 @@ static void esp32_sens_init(Object *obj)
 
     memory_region_init_io(&s->iomem, obj, &esp32_sens_ops, s,
                           TYPE_ESP32_SENS, 0x400);
+    s->ulp_sleep_cyc[0]=200;
     sysbus_init_mmio(sbd, &s->iomem);
+    qdev_init_gpio_out_named(DEVICE(sbd), &s->start_ulp, ESP32_START_ULP_GPIO, 1);
 }
 
 

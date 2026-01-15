@@ -12,7 +12,7 @@
 #define ESP32_GPIO_GET_CLASS(obj)   OBJECT_GET_CLASS(Esp32GpioClass, obj, TYPE_ESP32_GPIO)
 #define ESP32_GPIO_CLASS(klass)     OBJECT_CLASS_CHECK(Esp32GpioClass, klass, TYPE_ESP32_GPIO)
 
-#define ESP32_RTCIO_RESET_GPIO   "rtcio-cpu-reset"
+#define ESP32_RTCIO_WAKEUP_GPIO   "rtcio-cpu-reset"
 
 // GPIO Registers
 REG32(GPIO_OUT, 0x04)
@@ -43,6 +43,7 @@ REG32(GPIO_PCPU_INT1, 0x007c)
 REG32(GPIO_PIN_BASE,0x88)
     FIELD(GPIO_PIN,INT_TYPE,7,3)
     FIELD(GPIO_PIN,INT_ENABLE,13,5)
+    FIELD(GPIO_PIN,WAKEUP_ENABLE,10,1)
 REG32(GPIO_FUNC_IN_SEL_CFG_BASE,0x130)
     FIELD(GPIO_FUNC_IN,SEL,0,6)
     FIELD(GPIO_FUNC_IN,SIG_SEL,7,1)
@@ -117,7 +118,7 @@ typedef struct Esp32GpioState {
     QemuConsole *con;
     uint32_t *data;
     uint32_t redraw;
-    qemu_irq rtc_reset;
+    qemu_irq rtc_wakeup;
 } Esp32GpioState;
 
 typedef struct Esp32GpioClass {

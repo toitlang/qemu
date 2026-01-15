@@ -296,14 +296,14 @@ static void esp32_timg_wdt_reset(Esp32TimgWdtState* ws)
     ws->timeout[1] = 0x07ffffff;
     ws->timeout[2] = 0x000fffff;
     ws->timeout[3] = 0x000fffff;
-    ws->level_int_en = 0;
-    ws->edge_int_en = 0;
-    ws->en = 0;
+ //   ws->level_int_en = 0;
+ //   ws->edge_int_en = 0;
+ //   ws->en = 0;
     ws->protect_reg = ESP32_TIMG_WDT_PROTECT_WORD;
-    ws->count_base=0;
-    ws->ns_base=0;
-    ws->prescale=0;
-    ws->cur_stage=0;
+ //   ws->count_base=0;
+ //   ws->ns_base=0;
+ //   ws->prescale=0;
+ //   ws->cur_stage=0;
 
     if (ws->parent->wdt_en_at_reset) {
         /* On reset, stage0 is configured as system reset, however this is done by
@@ -489,8 +489,8 @@ static void esp32_timg_timer_update_alarm(Esp32TimgTimerState *ts, uint64_t ns_n
                                 * esp32_timg_timer_direction(ts);
     if (count_to_alarm <= 0) {
         /* ignore overflow modulo 64 bits */
-//        timer_del(&ts->alarm_timer);
-//        return;
+      //  timer_del(&ts->alarm_timer);
+      //  return;
 //        printf("err %ld\n",count_to_alarm);
 //		count_to_alarm=0;
 //	    esp32_timg_timer_cb(ts);
@@ -586,6 +586,7 @@ static void esp32_timg_wdt_cb(void *opaque)
     Esp32TimgWdtState *ws = (Esp32TimgWdtState*) opaque;
     Esp32TimgState *s = ws->parent;
     Esp32TimgWdtStageMode mode = ws->mode[ws->cur_stage];
+//    printf("%s: TG%d stage %d timeout mode %d\n", __func__, s->id, ws->cur_stage, mode);
 
     TIMG_DEBUG_LOG("%s: TG%d stage %d timeout mode %d\n", __func__, s->id, ws->cur_stage, mode);
     

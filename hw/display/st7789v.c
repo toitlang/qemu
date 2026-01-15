@@ -62,6 +62,7 @@ struct  St7789vState {
     bool iss3;
     qemu_irq button[2];
     qemu_irq reset;
+    qemu_irq touch_sensor[4];
 };
 
 #define TYPE_ST7789V "st7789v"
@@ -318,7 +319,7 @@ static const GraphicHwOps st7789_ops = {
     .gfx_update = st7789_update_display,
 };
 
-extern int touch_sensor[14];
+//extern int touch_sensor[14];
 #define PW 1200
 static void keyboard_event(DeviceState *dev, QemuConsole *src,
                                 InputEvent *evt) {
@@ -343,16 +344,17 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
             }
             int touch_codes[] = {Q_KEY_CODE_7, Q_KEY_CODE_8, Q_KEY_CODE_9,
                                  Q_KEY_CODE_0};
-            int tsens[4] = {2, 3, 8, 9};
+        //    int tsens[4] = {2, 3, 8, 9};
             if(s->iss3) {
-            	tsens[0]=0;
-            	tsens[1]=1;
-            	tsens[2]=11;
-            	tsens[3]=12;
+         //   	tsens[0]=0;
+         //   	tsens[1]=1;
+         //   	tsens[2]=11;
+         //   	tsens[3]=12;
             }
             for (int i = 0; i < 4; i++)
                 if (qcode == touch_codes[i])
-                    touch_sensor[tsens[i]] = 1000 * (1 - up);
+                    qemu_set_irq(s->touch_sensor[i],1000 * (1 - up));
+//                    touch_sensor[tsens[i]] = 1000 * (1 - up);
             break;
 
         case INPUT_EVENT_KIND_ABS:
@@ -367,8 +369,8 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
             if (up) {
                 qemu_set_irq(s->button[0], up);
                 qemu_set_irq(s->button[1], up);
-                for (int i = 2; i < 10; i++) 
-                    touch_sensor[i] = 0;
+                for (int i = 0; i < 4; i++) 
+                    qemu_set_irq(s->touch_sensor[i],0);
                 break;
             }
 // printf("xpos=%d ypos=%d\n",xpos,ypos);
@@ -398,17 +400,31 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                         ypos < 24713 && up == 0)
                         qemu_set_irq(s->reset, 1);
                 }
-                int xs[] = {0,    0, 1417,  1417,  1417,
-                            1417, 0, 30010, 30010, 30010};
-                int ys[] = {0,     0, 12132, 13791, 15312,
-                            16694, 0, 18388, 12201, 13860};
-                for (int i = 2; i < 10; i++) {
-                    if (i != 6) {
+                if(!s->iss3) {
+                    int xs[] = {1417,  1417,  30010, 30010};
+                    int ys[] = {12132, 13791, 12201, 13860};
+                    for (int i = 0; i < 4; i++) {
                         if (xpos > (xs[i] - PW) && xpos < (xs[i] + PW) &&
                             ypos > (ys[i] - PW) && ypos < (ys[i] + PW))
-                            touch_sensor[i] = 1000;
+                                qemu_set_irq(s->touch_sensor[i],1000);
+
                     }
+                } else {
+                    /*
+                        int xs[] = {0,    0, 1417,  1417,  1417,
+                                1417, 0, 30010, 30010, 30010};
+                    int ys[] = {0,     0, 12132, 13791, 15312,
+                                16694, 0, 18388, 12201, 13860};
+                    for (int i = 2; i < 10; i++) {
+                        if (i != 6) {
+                           // if (xpos > (xs[i] - PW) && xpos < (xs[i] + PW) &&
+                           //     ypos > (ys[i] - PW) && ypos < (ys[i] + PW))
+                            //  touch_sensor[i] = 1000;
+                        }
+                    }
+                        */
                 }
+                
             } else {
                 if(s->iss3) {
                     if (xpos > 29932 && xpos < 31382 && ypos > 2047 &&
@@ -436,6 +452,7 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                         up == 0)
                         qemu_set_irq(s->reset, 1);
                 }
+                /*
                 int xs[] = {0,     0, 12166, 13618, 15277,
                             16798, 0, 18388, 12166, 13791};
                 int ys[] = {0,     0, 31743, 31743, 31743,
@@ -444,9 +461,11 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                     if (i != 6) {
                         if (xpos > (xs[i] - PW) && xpos < (xs[i] + PW) &&
                             ypos > (ys[i] - PW) && ypos < (ys[i] + PW))
-                            touch_sensor[i] = 1000;
+                           // touch_sensor[i] = 1000;
+
                     }
                 }
+                    */
             }
             break;
         default:
@@ -476,6 +495,7 @@ static void st7789v_realize(SSIPeripheral *d, Error **errp) {
     qdev_init_gpio_in_named(dev, st7789v_backlight, "backlight", 1);
     qdev_init_gpio_out_named(dev,s->button,"buttons",2);
     qdev_init_gpio_out_named(dev,&s->reset,"reset",1);
+    qdev_init_gpio_out_named(dev,s->touch_sensor,"touch_sensor",4);
 
     if (console_state.con == 0) {
         ConsoleState *c=&console_state;

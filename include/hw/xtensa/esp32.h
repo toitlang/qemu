@@ -31,6 +31,7 @@
 #include "hw/net/can/esp32_twai.h"
 #include "hw/sd/dwc_sdmmc.h"
 #include "hw/display/esp_rgb.h"
+#include "hw/xtensa/ulp_cpu.h"
 
 typedef struct Esp32SocState {
     /*< private >*/
@@ -38,6 +39,7 @@ typedef struct Esp32SocState {
 
     /*< public >*/
     XtensaCPU cpu[ESP32_CPU_COUNT];
+    ULPCPU ulp_cpu;
     Esp32DportState dport;
     Esp32IntMatrixState intmatrix;
     Esp32CrosscoreInt crosscore_int;

@@ -11,6 +11,8 @@
 #define ESP32_RTC_CPU_RESET_GPIO    "cpu-reset"
 #define ESP32_RTC_CPU_STALL_GPIO    "cpu-stall"
 #define ESP32_RTC_CLK_UPDATE_GPIO   "clk-update"
+#define ESP32_ULP_TIMER_GPIO        "enable-gpio-timer"
+#define ESP32_RTC_WAKEUP_GPIO       "rtc-wakeup"
 
 typedef enum Esp32ResetCause {
     ESP32_POWERON_RESET = 1,
@@ -28,6 +30,20 @@ typedef enum Esp32ResetCause {
     ESP32_RTCWDT_BROWN_OUT_RESET = 15,
     ESP32_RTCWDT_RTC_RESET = 16
 } Esp32ResetCause;
+
+#define RTC_EXT0_TRIG_EN    BIT(0)  //!< EXT0 GPIO wakeup
+#define RTC_EXT1_TRIG_EN    BIT(1)  //!< EXT1 GPIO wakeup
+#define RTC_GPIO_TRIG_EN    BIT(2)  //!< GPIO wakeup (light sleep only)
+#define RTC_TIMER_TRIG_EN   BIT(3)  //!< Timer wakeup
+#define RTC_SDIO_TRIG_EN    BIT(4)  //!< SDIO wakeup (light sleep only)
+#define RTC_MAC_TRIG_EN     BIT(5)  //!< MAC wakeup (light sleep only)
+#define RTC_UART0_TRIG_EN   BIT(6)  //!< UART0 wakeup (light sleep only)
+#define RTC_UART1_TRIG_EN   BIT(7)  //!< UART1 wakeup (light sleep only)
+#define RTC_TOUCH_TRIG_EN   BIT(8)  //!< Touch wakeup
+#define RTC_ULP_TRIG_EN     BIT(9)  //!< ULP wakeup
+#define RTC_BT_TRIG_EN      BIT(10) //!< BT wakeup (light sleep only)
+
+
 
 typedef enum Esp32SocClkSel {
     ESP32_SOC_CLK_XTAL = 0,
@@ -56,6 +72,8 @@ typedef struct Esp32RtcCntlState {
     qemu_irq cpu_reset_req[ESP32_CPU_COUNT];
     qemu_irq cpu_stall_req[ESP32_CPU_COUNT];
     qemu_irq clk_update;
+    qemu_irq enable_ulp_timer;
+    qemu_irq rtc_wakeup;
     bool cpu_stall_state[ESP32_CPU_COUNT];
 
     uint32_t xtal_apb_freq;
@@ -74,11 +92,14 @@ typedef struct Esp32RtcCntlState {
     uint32_t sleep_timer1_reg;
     uint32_t sw_cpu_stall_reg;
     uint32_t wakeup_state_reg;
+    uint32_t wakeup_conf;
+    uint32_t low_power_state_reg;
     uint32_t scratch_reg[ESP32_RTC_CNTL_SCRATCH_REG_COUNT];
     uint32_t mem_conf;
     uint32_t int_raw;
     uint32_t int_en;
     uint32_t sdio_conf;
+    uint32_t dig_pwc;
     Esp32ResetCause reset_cause[ESP32_CPU_COUNT];
     bool stat_vector_sel[ESP32_CPU_COUNT];
     QEMUTimer sleep_timer;
@@ -104,6 +125,7 @@ REG32(RTC_CNTL_TIME1, 0x14)
 
 REG32(RTC_CNTL_STATE0, 0x18)
     FIELD(RTC_CNTL_STATE0,SLEEP_EN,31,1)
+    FIELD(RTC_CNTL_STATE0,ULP_TIMER_EN,24,1)
 
 REG32(RTC_CNTL_RESET_STATE, 0x34)
     FIELD(RTC_CNTL_RESET_STATE, PROCPU_STAT_VECTOR_SEL, 13, 1)
@@ -141,6 +163,10 @@ REG32(RTC_CNTL_STORE1, 0x50)
 REG32(RTC_CNTL_STORE2, 0x54)
 REG32(RTC_CNTL_STORE3, 0x58)
 
+REG32(RTC_CNTL_EXT_WAKEUP_CONF, 0x60)
+    FIELD(RTC_CNTL_EXT_WAKEUP_CONF, WAKEUP0LV, 30,1)
+    FIELD(RTC_CNTL_EXT_WAKEUP_CONF, WAKEUP1LV, 31,1)
+
 REG32(RTC_CNTL_CLK_CONF, 0x70)
     FIELD(RTC_CNTL_CLK_CONF, ANA_CLK_RTC_SEL, 30, 2)
     FIELD(RTC_CNTL_CLK_CONF, FAST_CLK_RTC_SEL, 29, 1)
@@ -148,6 +174,9 @@ REG32(RTC_CNTL_CLK_CONF, 0x70)
 
 REG32(RTC_CNTL_SDIO_CONF, 0x74)
     FIELD(RTC_CNTL_SDIO_CONF, VREG_PD_EN, 21, 1)
+
+REG32(RTC_CNTL_DIG_PWC, 0x84)
+    FIELD(RTC_CNTL_DIG_PWC, DG_WRAP_PD_EN, 31, 1)
 
 REG32(RTC_CNTL_SW_CPU_STALL, 0xac)
     FIELD(RTC_CNTL_SW_CPU_STALL, PROCPU_C1, 26, 6)
@@ -157,6 +186,9 @@ REG32(RTC_CNTL_STORE4, 0xb0)
 REG32(RTC_CNTL_STORE5, 0xb4)
 REG32(RTC_CNTL_STORE6, 0xb8)
 REG32(RTC_CNTL_STORE7, 0xbc)
+
+REG32(RTC_CNTL_LOW_POWER_ST_REG, 0xc0)
+    FIELD(RTC_CNTL_LOW_POWER_ST_REG, RTC_RDY_FOR_WAKEUP, 19,1)
 
 REG32(RTC_MEM_CONF, 0x100)
     FIELD(RTC_MEM_CONF, CRC_FINISH, 31,1)

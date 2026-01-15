@@ -22,6 +22,10 @@
 #include "hw/qdev-properties.h"
 #include "hw/gpio/esp32_gpio.h"
 #include "sysemu/runstate.h"
+#include "hw/misc/esp32_reg.h"
+#include "hw/misc/esp32_rtc_cntl.h"
+#include "exec/address-spaces.h"
+
 
 #define N_GPIOS 40
 #define DIRECT_GPIO 2
@@ -312,6 +316,10 @@ static const uint8_t GPIO_PIN_MUX_REG_OFFSET[] = {
     0x1c,0x20,0x14,0x18,0x04,0x08,0x0c,0x10,
 };
 
+#define N_RTC_GPIOS 18
+// mapping from rtc gpios to iomux gpios
+int gpio_map[N_RTC_GPIOS]={36,37,38,39,34,35,25,26,33,32,4,0,2,15,13,12,14,27};
+
 static uint64_t esp32_gpio_read(void *opaque, hwaddr addr, unsigned int size) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
     uint64_t r = 0;
@@ -386,17 +394,49 @@ static int get_triggering(int int_type, int oldval, int val) {
 }
 static void set_gpio(void *opaque, int n, int val) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
-//    printf("set_gpio %x %x\n",s->rtc_pad_cfg[1],s->rtc_ext_wakeup0);
-    if(n==35 && val==0 /*&& (s->rtc_pad_cfg[1]&0x10000000)*/ && ((s->rtc_ext_wakeup0>>27)==5)) {
+    //printf("set_gpio %x %x\n",s->rtc_pad_cfg[1],s->rtc_ext_wakeup0);
+    if(runstate_get()==RUN_STATE_SUSPENDED) {
+        uint32_t wakeup_state,wakeup_conf;
+        uint32_t addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_WAKEUP_STATE;
+        address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &wakeup_state, 4);
+        addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_EXT_WAKEUP_CONF;
+        address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &wakeup_conf, 4);
+//        printf("wakeup_state %x %x %x %x\n",wakeup_state,s->rtc_ext_wakeup0, wakeup_conf, s->gpio_pin[n]);
+
+        if(FIELD_EX32(wakeup_state,RTC_CNTL_WAKEUP_STATE,WAKEUP_ENA_EXT0)) {
+            for(int i=0;i<N_RTC_GPIOS;i++) {
+                if(n==gpio_map[i] && (s->rtc_ext_wakeup0>>27)==i && val==0) {
+    //                qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
+                    qemu_set_irq(s->rtc_wakeup,RTC_EXT0_TRIG_EN);
+                    s->rtc_ext_wakeup0=0;
+                    break;
+                }
+            }
+        }
+
+        if(FIELD_EX32(wakeup_state,RTC_CNTL_WAKEUP_STATE,WAKEUP_ENA_GPIO) && FIELD_EX32(s->gpio_pin[n],GPIO_PIN,WAKEUP_ENABLE)) {
+            int oldval = (n<32?(s->gpio_in >> n):(s->gpio_in1 >> (n-32)))&1;
+            int irq=get_triggering(FIELD_EX32(s->gpio_pin[n],GPIO_PIN,INT_TYPE),oldval,val);
+//            printf("wake %x %d\n",irq, oldval);
+            if(irq)
+                qemu_set_irq(s->rtc_wakeup,RTC_EXT0_TRIG_EN);
+        }
+    }
+    /*
+    if(n==35 && val==0  && ((s->rtc_ext_wakeup0>>27)==5)) {
         qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
-        qemu_irq_pulse(s->rtc_reset);
+        qemu_set_irq(s->rtc_wakeup,RTC_EXT0_TRIG_EN);
         s->rtc_ext_wakeup0=0;
         return;
     }
-    if(n==35 && val==0 /*&& vm_get_suspended()*/) {
+    */
+    /*
+    if(n==35 && val==0 && (runstate_get()==RUN_STATE_SUSPENDED)) {
+        printf("wakeup 35 %d\n",runstate_get());
         qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
         //qemu_irq_pulse(s->rtc_reset);
     }
+        */
         
     if (n < 32) {
         int oldval = (s->gpio_in >> n) & 1;
@@ -588,16 +628,27 @@ static void esp32_iomux_write(void *opaque, hwaddr addr, uint64_t value,
 }
 
 
+
 static uint64_t esp32_rtc_read(void *opaque, hwaddr addr, unsigned int size) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
     uint64_t r=0;
     
+    int rtc_in=0;
+    int rtc_out=0;
+    for(int i=0;i<N_RTC_GPIOS;i++) {
+        int n=gpio_map[i];
+        int in=((n<32)?s->gpio_in>>n:s->gpio_in1>>(n-32))&1;
+        int out=((n<32)?s->gpio_out>>n:s->gpio_out1>>(n-32))&1;
+        rtc_in|=(in<<i);
+        rtc_out|=(out<<i);
+    }
+
     switch (addr) {
         case A_RTC_GPIO_OUT:
-            r=s->rtc_gpio_out;
+            r=rtc_out<<14;
             break;
         case A_RTC_GPIO_IN:
-            r=s->rtc_gpio_in;
+            r=rtc_in<<14;
             break;
         case A_RTC_GPIO_PIN ... A_RTC_GPIO_PIN+17*4:
             r=s->rtc_gpio_pin[(addr-A_RTC_GPIO_PIN)/4];
@@ -620,18 +671,31 @@ static void esp32_rtc_write(void *opaque, hwaddr addr, uint64_t value,
                              unsigned int size) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
 //    printf("RTC write %lx %lx\n",addr,value);
+   // int rtc_in=0;
+    int rtc_out=0;
+    uint32_t oldvalue = s->gpio_out;
+    uint32_t oldvalue1 = s->gpio_out1;
+    for(int i=0;i<N_RTC_GPIOS;i++) {
+        int n=gpio_map[i];
+     //   int in=((n<32)?s->gpio_in>>n:s->gpio_in1>>(n-32))&1;
+        int out=((n<32)?s->gpio_out>>n:s->gpio_out1>>(n-32))&1;
+     //   rtc_in|=(in<<i);
+        rtc_out|=(out<<i);
+    }
+    rtc_out<<=14;
+
     switch (addr) {
         case A_RTC_GPIO_OUT:
-            s->rtc_gpio_out = value;
-            s->rtc_gpio_in = (s->rtc_gpio_in & ~s->rtc_gpio_enable) | (value & s->rtc_gpio_enable);
+            rtc_out = value;
+ //           rtc_in = (rtc_in & ~s->rtc_gpio_enable) | (value & s->rtc_gpio_enable);
             break;
         case A_RTC_GPIO_OUT_W1TS:
-            s->rtc_gpio_out |= value;
-            s->rtc_gpio_in |= value;
+            rtc_out |= value;
+ //           rtc_in |= value;
             break;
         case A_RTC_GPIO_OUT_W1TC:
-            s->rtc_gpio_out &= ~value;
-            s->rtc_gpio_in &= ~value;
+            rtc_out &= ~value;
+ //           rtc_in &= ~value;
             break;
         case A_RTC_GPIO_ENABLE:
         	s->rtc_gpio_enable = value;
@@ -654,6 +718,37 @@ static void esp32_rtc_write(void *opaque, hwaddr addr, uint64_t value,
         case A_RTC_EXT_WAKEUP0:
             s->rtc_ext_wakeup0 = value;
             break;
+    }
+    
+    for(int i=0;i<N_RTC_GPIOS;i++) {
+        int n=gpio_map[i];
+     //   int in=(rtc_in>>(i+14))&1;
+        int out=(rtc_out>>(i+14))&1;
+        
+     //   if(n<32) s->gpio_in=(s->gpio_in&(~(1<<n)))|(in<<n);
+     //   else s->gpio_in1=(s->gpio_in1&(~(1<<(n-32))))|(in<<(n-32));
+        if(n<32) s->gpio_out=(s->gpio_out&(~(1<<n)))|(out<<n);
+        else s->gpio_out1=(s->gpio_out1&(~(1<<(n-32))))|(out<<(n-32));
+        
+    }
+        if (s->gpio_out != oldvalue) {
+        uint32_t diff = (s->gpio_out ^ oldvalue);
+        for (int i = 0; i < 32; i++) {
+            if ((1 << i) & diff) {
+                if(i!=16) {
+                    s->redraw=1;
+                }
+                qemu_set_irq(s->gpios[i], (s->gpio_out & (1 << i)) ? 1 : 0);
+            }
+        }
+    }
+    if (s->gpio_out1 != oldvalue1) {
+        uint32_t diff = (s->gpio_out1 ^ oldvalue1);
+        for (int i = 0; i < 16; i++) {
+            if ((1 << i) & diff) {
+                qemu_set_irq(s->gpios[i+32], (s->gpio_out1 & (1 << i)) ? 1 : 0);
+            }
+        }
     }
    // s->rtcio_regs[addr/4]=value;
 }
@@ -883,7 +978,7 @@ static void esp32_gpio_init(Object *obj) {
     sysbus_init_irq(sbd, &s->irq);
     qdev_init_gpio_out_named(dev, &s->irq, SYSBUS_DEVICE_GPIO_IRQ, 1);
     qdev_init_gpio_out_named(dev, s->gpios, ESP32_GPIOS, 32);
-    qdev_init_gpio_out_named(dev, &s->rtc_reset, ESP32_RTCIO_RESET_GPIO, 1);
+    qdev_init_gpio_out_named(dev, &s->rtc_wakeup, ESP32_RTCIO_WAKEUP_GPIO, 1);
     qdev_init_gpio_in_named(dev, set_gpio, ESP32_GPIOS_IN, N_GPIOS);
     qdev_init_gpio_in_named(dev, func_gpio, ESP32_GPIOS_FUNC,1);
     s->gpio_in = 0x1;
