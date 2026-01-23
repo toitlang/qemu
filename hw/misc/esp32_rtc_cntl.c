@@ -126,7 +126,7 @@ static uint64_t esp32_rtc_cntl_read(void *opaque, hwaddr addr, unsigned int size
         break;
     }
     if (DEBUG)
-        printf("RTC_CNTL Read %lx %lx\n",addr,r);
+        printf("RTC_CNTL Read %x %x\n",(uint32_t)addr,(uint32_t)r);
     return r;
 }
 
@@ -135,7 +135,7 @@ static void esp32_rtc_cntl_write(void *opaque, hwaddr addr, uint64_t value,
 {
     Esp32RtcCntlState *s = ESP32_RTC_CNTL(opaque);
     if(DEBUG)
-        printf("RTC_CNTL Write %lx %lx\n",addr,value);
+        printf("RTC_CNTL Write %x %x\n",(uint32_t) addr, (uint32_t)value);
     switch (addr) {
     case A_RTC_CNTL_OPTIONS0:
         if (value & R_RTC_CNTL_OPTIONS0_SW_SYS_RESET_MASK) {
@@ -183,7 +183,7 @@ static void esp32_rtc_cntl_write(void *opaque, hwaddr addr, uint64_t value,
                 sleep_time - s->time_reg, NANOSECONDS_PER_SECOND,
                 s->rtc_slowclk_freq);
             if(DEBUG)
-                printf("Sleep %ld, %ld, %d, %ld\n",s->time_reg, sleep_time, timer_en, sleep_ns);
+                printf("Sleep %d, %d, %d, %d\n",(uint32_t)s->time_reg, (uint32_t)sleep_time, timer_en, (uint32_t)sleep_ns);
             if(timer_en)
                 timer_mod(&s->sleep_timer, qemu_clock_get_ns(QEMU_CLOCK_REALTIME)+sleep_ns);
             s->low_power_state_reg=FIELD_DP32(s->low_power_state_reg,RTC_CNTL_LOW_POWER_ST_REG, RTC_RDY_FOR_WAKEUP,1);
@@ -232,7 +232,7 @@ static void esp32_rtc_cntl_write(void *opaque, hwaddr addr, uint64_t value,
         break;
     case A_RTC_CNTL_EXT_WAKEUP_CONF:
         if(DEBUG)
-            printf("wakeup_conf %lx\n",value);
+            printf("wakeup_conf %x\n",(uint32_t)value);
         s->wakeup_conf = value;
         break;
     case A_RTC_MEM_CONF:

@@ -21,7 +21,7 @@
 static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
 {
     Esp32SensState *s = ESP32_SENS(opaque);
-    uint32_t r = 0;
+    uint32_t r = 0,n1;
     
     switch(addr) {
     case A_SENS_SAR_MEAS_START1:
@@ -37,7 +37,7 @@ static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
         r = s->sar_start_force;
         break;
     case A_SENS_SAR_TOUCH_OUT1 ... A_SENS_SAR_TOUCH_OUT1+4*4:
-        int n1=((addr-A_SENS_SAR_TOUCH_OUT1)/4)*2;
+        n1=((addr-A_SENS_SAR_TOUCH_OUT1)/4)*2;
         r = ((1500-s->touch_sensor[n1]+rand()%20)<<16) | (1500-s->touch_sensor[n1+1]+rand()%20);
         break;
     case A_SENS_ULP_CP_SLEEP_CYC0 ... A_SENS_ULP_CP_SLEEP_CYC0+4*4:
