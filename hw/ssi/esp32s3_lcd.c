@@ -176,7 +176,7 @@ static void esp32s3_lcd_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->legacy_reset = esp32s3_lcd_reset;
+    device_class_set_legacy_reset(dc,esp32s3_lcd_reset);
     dc->realize = esp32s3_lcd_realize;
     device_class_set_props(dc, esp32s3_lcd_properties);
 }

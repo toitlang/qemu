@@ -13,7 +13,7 @@
 
 #define ULP_TIMER_GPIO "ulp_timer_start"
 #define ULP_WAKEUP_GPIO "ulp_wakeup_gpio"
-#define ULP_START_GPIO "ulp_start_gpio"
+#define ULP_SET_PC_GPIO "ulp_set_pc_gpio"
 
 OBJECT_DECLARE_SIMPLE_TYPE(ULPCPU, ULP_CPU)
 
@@ -25,9 +25,10 @@ typedef struct ULPCPUState {
     bool zero;
     bool overflow;
     bool halted;
-    bool timer_on;
+    uint32_t timer_on;
     int timer_number;
     int wait_instructions;
+    bool v2;
 
     uint32_t stage_cnt;
     QEMUTimer ulp_timer;
@@ -40,5 +41,3 @@ struct ULPCPU {
     ULPCPUState env;
 };
 
-//void ulp_cpu_step(ULPCPU *cpu);
-//void ulp_timer_cb(void *v);

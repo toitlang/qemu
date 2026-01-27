@@ -58,9 +58,8 @@ typedef struct ESP32S3ClockState {
 
     /* Bitmap that keeps the level of the IRQs */
     uint32_t levels;
-    
     uint32_t app_cpu_addr;
-    
+    uint32_t mem_conf;
     uint32_t sys_ext_dev_enc_dec_ctrl;
     qemu_irq clk_update;
 

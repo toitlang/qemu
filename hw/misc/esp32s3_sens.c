@@ -17,23 +17,25 @@
 #include "hw/sysbus.h"
 #include "hw/misc/esp32s3_sens.h"
 
-//extern int touch_sensor[14];
 
-static uint32_t temp;
+static void touch_sensor_changed(void *opaque, int n, int level) {
+//    printf("touch_sensor_changed %d %d\n",n,level);
+    Esp32S3SensState *s = ESP32S3_SENS(opaque);
+    s->touch_sensor[n]=level;
+}
 
 static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
 {
-    static int touch_sensor[14];
-//Esp32S3SensState *s = ESP32S3_SENS(opaque);
+    Esp32S3SensState *s = ESP32S3_SENS(opaque);
     uint32_t r = 0;
 //    printf("esp32_sens_read %lx\n",addr);
     switch(addr) {
     case A_SENS_SAR_MEAS1_CTRL2_REG:
         return 0x10000+2800+rand()%4;
-   case 0x50:
-    return temp | (1<<8);
+    case A_SENS_SAR_TSENS_CTRL_REG:
+        return (1<<8);
     case A_SENS_SAR_TOUCH_CHN_ST_REG:
-	return (1<<31);
+	    return (1<<31);
     }
 // 2=gpio2, 3=gpio15, 4=gpio14(13?), 5=gpio12, 7=gpio27, 8=gpio33, 9=gpio32
 // land +/- 300: 2=12166,31743 15=13618,31585 13=15277,31743 12=16798,31743 27=18388,3071 33=13791,2993 32=12166,2914
@@ -41,11 +43,8 @@ static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
 
     if(addr>=0xa4 && addr<0xdc) {
 	int n1=((addr-0xa4)/4);
-        return ((1500-touch_sensor[n1]+rand()%20));
+        return ((1500-s->touch_sensor[n1]+rand()%20));
     }
-
-
-//    qemu_guest_getrandom_nofail(&r, sizeof(r));
     return r;
 }
 
@@ -71,6 +70,7 @@ static void esp32_sens_init(Object *obj)
     memory_region_init_io(&s->iomem, obj, &esp32_sens_ops, s,
                           TYPE_ESP32S3_SENS, 0x400);
     sysbus_init_mmio(sbd, &s->iomem);
+    qdev_init_gpio_in_named(DEVICE(sbd), touch_sensor_changed,"touch_sensor", 14);
 }
 
 

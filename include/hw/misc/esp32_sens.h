@@ -9,12 +9,12 @@
 #define TYPE_ESP32_SENS "misc.esp32.sens"
 #define ESP32_SENS(obj) OBJECT_CHECK(Esp32SensState, (obj), TYPE_ESP32_SENS)
 
-#define ESP32_START_ULP_GPIO "start_ulp"
+#define ESP32_SET_ULP_PC_GPIO "set_ulp_pc"
 
 typedef struct Esp32SensState {
     SysBusDevice parent_obj;
     MemoryRegion iomem;
-    uint32_t touch_sensor[14];
+    uint32_t touch_sensor[10];
     uint32_t ulp_sleep_cyc[5];
     qemu_irq start_ulp;
     uint32_t sar_start_force;

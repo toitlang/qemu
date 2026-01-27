@@ -360,7 +360,7 @@ static void esp32_ledc_reset(DeviceState *obj) {
 static void esp32_ledc_class_init(ObjectClass *klass, void *data) {
     DeviceClass *dc = DEVICE_CLASS(klass);
     dc->realize = esp32_ledc_realize;
-    dc->legacy_reset = esp32_ledc_reset;
+    device_class_set_legacy_reset(dc,esp32_ledc_reset);
 }
 
 static const TypeInfo esp32_ledc_info = {

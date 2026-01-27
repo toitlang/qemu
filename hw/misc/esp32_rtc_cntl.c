@@ -102,6 +102,9 @@ static uint64_t esp32_rtc_cntl_read(void *opaque, hwaddr addr, unsigned int size
     case A_RTC_CNTL_EXT_WAKEUP_CONF:
         r = s->wakeup_conf;
         break;
+    case A_RTC_CNTL_EXT_WAKEUP1:
+        r = s->ext_wakeup1;
+        break;
     case A_RTC_MEM_CONF:
         r = s->mem_conf;
         if (FIELD_EX32(r,RTC_MEM_CONF,CRC_START))
@@ -133,6 +136,7 @@ static uint64_t esp32_rtc_cntl_read(void *opaque, hwaddr addr, unsigned int size
 static void esp32_rtc_cntl_write(void *opaque, hwaddr addr, uint64_t value,
                                  unsigned int size)
 {
+    uint32_t oldval;
     Esp32RtcCntlState *s = ESP32_RTC_CNTL(opaque);
     if(DEBUG)
         printf("RTC_CNTL Write %x %x\n",(uint32_t) addr, (uint32_t)value);
@@ -174,6 +178,7 @@ static void esp32_rtc_cntl_write(void *opaque, hwaddr addr, uint64_t value,
         break;
 
     case A_RTC_CNTL_STATE0:
+        oldval = s->state0;
         s->state0 = value;
         if(FIELD_EX32(value, RTC_CNTL_STATE0,SLEEP_EN)) {
             s->int_raw = 1;
@@ -189,9 +194,10 @@ static void esp32_rtc_cntl_write(void *opaque, hwaddr addr, uint64_t value,
             s->low_power_state_reg=FIELD_DP32(s->low_power_state_reg,RTC_CNTL_LOW_POWER_ST_REG, RTC_RDY_FOR_WAKEUP,1);
          //   s->wakeup_state_reg=FIELD_DP32(s->wakeup_state_reg, RTC_CNTL_WAKEUP_STATE, WAKEUP_ENA_RTC_TIMER,0);
             qemu_system_suspend_request();
-        }        
+        }
 //        printf("set state0 %lx\n",value);
-        qemu_set_irq(s->enable_ulp_timer,FIELD_EX32(value, RTC_CNTL_STATE0,ULP_TIMER_EN));
+        if(FIELD_EX32(value ^ oldval, RTC_CNTL_STATE0,ULP_TIMER_EN))
+            qemu_set_irq(s->enable_ulp_timer,FIELD_EX32(value, RTC_CNTL_STATE0,ULP_TIMER_EN));
         break;
 
     case A_RTC_CNTL_STORE0:
@@ -234,6 +240,9 @@ static void esp32_rtc_cntl_write(void *opaque, hwaddr addr, uint64_t value,
         if(DEBUG)
             printf("wakeup_conf %x\n",(uint32_t)value);
         s->wakeup_conf = value;
+        break;
+    case A_RTC_CNTL_EXT_WAKEUP1:
+        s->ext_wakeup1 = value;
         break;
     case A_RTC_MEM_CONF:
         s->mem_conf = value;

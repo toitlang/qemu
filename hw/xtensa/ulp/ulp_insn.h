@@ -105,9 +105,17 @@ typedef union ULPUInt {
         unsigned int threshold : 16;
         unsigned int judge : 1;         
         unsigned int step: 8;        
-        unsigned int sub_opcode : 3;    /*!< Sub opcode (SUB_OPCODE_BX) */
+        unsigned int sub_opcode : 3;    /*!< Sub opcode (SUB_OPCODE_B) */
         unsigned int opcode : 4;        /*!< Opcode (OPCODE_BRANCH) */
     } jump_alu_relr;                      /*!< Format of ALU instruction  */
+
+    struct {
+        unsigned int threshold : 16;
+        unsigned int judge : 2;         
+        unsigned int step: 8;        
+        unsigned int sub_opcode : 2;    /*!< Sub opcode (SUB_OPCODE_B_V2) */
+        unsigned int opcode : 4;        /*!< Opcode (OPCODE_BRANCH) */
+    } jump_alu_relr_v2;                      /*!< Format of ALU instruction  */
 
     struct {
         unsigned int threshold : 8;
@@ -119,9 +127,21 @@ typedef union ULPUInt {
     } jump_alu_rels;                      /*!< Format of ALU instruction  */
 
     struct {
+        unsigned int threshold : 8;
+        unsigned int unused : 7;
+        unsigned int judge : 3;
+        unsigned int step : 8;
+        unsigned int sub_opcode : 2;    /*!< Sub opcode (SUB_OPCODE_BS) */
+        unsigned int opcode : 4;        /*!< Opcode (OPCODE_BRANCH) */
+    } jump_alu_rels_v2;                      /*!< Format of ALU instruction  */
+
+    struct {
         unsigned int sreg : 2;
         unsigned int dreg : 2;
-        unsigned int unused1 : 6;
+        unsigned int label : 2;
+    	unsigned int high_low : 1;
+	    unsigned int write_way : 2;
+	    unsigned int unused1: 1;
         int offset : 11;
         unsigned int unused2 : 4;
         unsigned int sub_opcode : 3;    /*!< Sub opcode (SUB_OPCODE_BX) */

@@ -267,7 +267,7 @@ static void esp32_rmt_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->legacy_reset = esp32_rmt_reset;
+    device_class_set_legacy_reset(dc,esp32_rmt_reset);
     dc->realize = esp32_rmt_realize;
     device_class_set_props(dc, esp32_rmt_properties);
 }

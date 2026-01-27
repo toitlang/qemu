@@ -20,6 +20,11 @@
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
 #include "hw/gpio/esp32s3_gpio.h"
+#include "sysemu/runstate.h"
+#include "hw/misc/esp32s3_reg.h"
+#include "hw/misc/esp32s3_rtc_cntl.h"
+#include "exec/address-spaces.h"
+
 
 struct gpio_matrix_t {
     int         num;
@@ -32,6 +37,7 @@ struct gpio_matrix_t {
 #define DIRECT_GPIO 1
 #define CONSOLE_WIDTH 320
 #define CONSOLE_HEIGHT (16*(N_GPIOS+1))
+#define N_RTC_GPIOS 22
 
 static const struct gpio_matrix_t gpio_matrix[] = {
     { 0,   "SPIQ_in",                "SPIQ_out",                true  },
@@ -621,8 +627,41 @@ static int get_triggering(int int_type, int oldval, int val) {
 
 static void set_gpio(void *opaque, int n, int val) {
     ESP32S3GPIOState *s = ESP32S3_GPIO(opaque);
+    if(runstate_get()==RUN_STATE_SUSPENDED) {
+        uint32_t wakeup_state,wakeup_conf,ext1_wakeup;
+        uint32_t addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_WAKEUP_STATE;
+        address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &wakeup_state, 4);
+        addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_EXT_WAKEUP_CONF;
+        address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &wakeup_conf, 4);
+        addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_EXT_WAKEUP1;
+        address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &ext1_wakeup, 4);
+    //    printf("wakeup_state %d %x %x %x %x\n",n , wakeup_state,s->rtc_ext_wakeup0, wakeup_conf, s->gpio_pin[n]);
 
-//    printf("set_gpio %d %d\n",n,val);
+        if(FIELD_EX32(wakeup_state,RTC_CNTL_WAKEUP_STATE,WAKEUP_ENA_EXT0)) {
+            if(FIELD_EX32(s->rtc_ext_wakeup0,RTC_EXT_WAKEUP0,SEL)==n && val==0) {
+                qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
+                qemu_set_irq(s->rtc_wakeup,RTC_EXT0_TRIG_EN);
+                s->rtc_ext_wakeup0=0;
+            }
+        }
+
+        if(FIELD_EX32(wakeup_state,RTC_CNTL_WAKEUP_STATE,WAKEUP_ENA_EXT1)) {
+            if(((ext1_wakeup>>n) & 1) && val==0) {
+                qemu_set_irq(s->rtc_wakeup,RTC_EXT1_TRIG_EN);
+            }
+        }
+
+
+        if(FIELD_EX32(wakeup_state,RTC_CNTL_WAKEUP_STATE,WAKEUP_ENA_GPIO) && FIELD_EX32(s->gpio_pin[n],GPIO_PIN,WAKEUP_ENABLE)) {
+            int oldval = (n<32?(s->gpio_in >> n):(s->gpio_in1 >> (n-32)))&1;
+            int irq=get_triggering(FIELD_EX32(s->gpio_pin[n],GPIO_PIN,INT_TYPE),oldval,val);
+    //        printf("wake %x %d\n",irq, oldval);
+            if(irq)
+                qemu_set_irq(s->rtc_wakeup,RTC_EXT0_TRIG_EN);
+        }
+    }
+
+    //printf("set_gpio %d %d\n",n,val);
     if (n < 32) {
         int oldval = (s->gpio_in >> n) & 1;
         int int_type = (s->gpio_pin[n] >> 7) & 7;
@@ -643,6 +682,90 @@ static void set_gpio(void *opaque, int n, int val) {
         if (irq && (s->gpio_pin[n] & (1 << 13))) {  // pro cpu int enable
             qemu_set_irq(s->irq, 1);
             s->gpio_cpu_int1 |= (1 << n1);
+        }
+    }
+}
+
+static uint64_t esp32_rtc_read(void *opaque, hwaddr addr, unsigned int size) {
+    ESP32S3GPIOState *s = ESP32S3_GPIO(opaque);
+    uint64_t r=0;
+    
+    int rtc_in=s->gpio_in&((1<<N_RTC_GPIOS)-1);
+    int rtc_out=s->gpio_out&((1<<N_RTC_GPIOS)-1);
+
+    switch (addr) {
+        case A_RTC_GPIO_OUT:
+            r=rtc_out<<10;
+            break;
+        case A_RTC_GPIO_IN:
+            r=rtc_in<<10;
+            break;
+        case A_RTC_GPIO_PIN ... A_RTC_GPIO_PIN+17*4:
+            r=s->rtc_gpio_pin[(addr-A_RTC_GPIO_PIN)/4];
+            break;
+        case A_RTC_PAD_CFG ... A_RTC_PAD_CFG+15*4:
+            r=s->rtc_pad_cfg[(addr-A_RTC_PAD_CFG)/4];
+            break;
+        case A_RTC_EXT_WAKEUP0:
+            r=s->rtc_ext_wakeup0;
+            break;
+    }
+//    printf("RTC read %lx=%lx\n",addr,r);
+    return r;
+}
+
+static void esp32_rtc_write(void *opaque, hwaddr addr, uint64_t value,
+                             unsigned int size) {
+    ESP32S3GPIOState *s = ESP32S3_GPIO(opaque);
+//    printf("RTC write %lx %lx\n",addr,value);
+    uint32_t oldvalue = s->gpio_out;
+    uint32_t gpio_mask=(1<<N_RTC_GPIOS)-1;
+    uint32_t rtc_out=s->gpio_out&gpio_mask;
+ 
+    rtc_out<<=10;
+    switch (addr) {
+        case A_RTC_GPIO_OUT:
+            rtc_out = value;
+            break;
+        case A_RTC_GPIO_OUT_W1TS:
+            rtc_out |= value;
+            break;
+        case A_RTC_GPIO_OUT_W1TC:
+            rtc_out &= ~value;
+            break;
+        case A_RTC_GPIO_ENABLE:
+        	s->rtc_gpio_enable = value;
+        	break;
+        case A_RTC_GPIO_ENABLE_W1TS:
+        	s->rtc_gpio_enable |= value;
+        	break;
+        case A_RTC_GPIO_ENABLE_W1TC:
+        	s->rtc_gpio_enable &= ~value;
+        	break;
+        case A_RTC_GPIO_PIN ... A_RTC_GPIO_PIN+17*4:
+            s->rtc_gpio_pin[(addr-A_RTC_GPIO_PIN)/4] = value;
+            break;
+        case A_RTC_PAD_CFG ... A_RTC_PAD_CFG+15*4:
+            s->rtc_pad_cfg[(addr-A_RTC_PAD_CFG)/4] = value;
+            break;
+        case A_RTC_EXT_WAKEUP0:
+            s->rtc_ext_wakeup0 = value;
+            break;
+            
+    }
+    
+
+    s->gpio_out &= ~gpio_mask;
+    s->gpio_out |= rtc_out>>10;
+    if (s->gpio_out != oldvalue) {
+        uint32_t diff = (s->gpio_out ^ oldvalue);
+        for (int i = 0; i < N_RTC_GPIOS; i++) {
+            if ((1 << i) & diff) {
+                if(i!=16) {
+                    s->redraw=1;
+                }
+                qemu_set_irq(s->gpios[i], (s->gpio_out & (1 << i)) ? 1 : 0);
+            }
         }
     }
 }
@@ -805,6 +928,12 @@ static const MemoryRegionOps iomux_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
+static const MemoryRegionOps rtc_ops = {
+    .read = esp32_rtc_read,
+    .write = esp32_rtc_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+};
+
 static void ESP32S3_GPIO_reset(Object *dev, ResetType type) {
     ESP32S3GPIOState *s = ESP32S3_GPIO(dev);
     for(int i=0;i<256;i++) {
@@ -847,11 +976,15 @@ static void esp32s3_gpio_init(Object *obj)
                           TYPE_ESP32S3_GPIO, 0x1000);
     memory_region_init_io(&s->iomuxmem, obj, &iomux_ops, s,
                           TYPE_ESP32S3_GPIO, 0x1000);
+    memory_region_init_io(&s->iortcmem, obj, &rtc_ops, s,
+                          TYPE_ESP32S3_GPIO, 0x100);
     sysbus_init_mmio(sbd, &s->iomem);
     sysbus_init_mmio(sbd, &s->iomuxmem);
+    sysbus_init_mmio(sbd, &s->iortcmem);
     sysbus_init_irq(sbd, &s->irq);
     qdev_init_gpio_out_named(DEVICE(s), &s->irq, SYSBUS_DEVICE_GPIO_IRQ, 1);
     qdev_init_gpio_out_named(DEVICE(s), s->gpios, ESP32_GPIOS, 49);
+    qdev_init_gpio_out_named(DEVICE(s), &s->rtc_wakeup, ESP32_RTCIO_WAKEUP_GPIO, 1);
     qdev_init_gpio_in_named(DEVICE(s), set_gpio, ESP32_GPIOS_IN, 49);
     qdev_init_gpio_in_named(DEVICE(s), func_gpio, ESP32_GPIOS_FUNC,1);
 

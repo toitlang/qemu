@@ -23,6 +23,7 @@
 #include "sysemu/runstate.h"
 #include "qemu/timer.h"
 #include "hw/qdev-properties.h"
+#include <pixman.h>
 
 #define PANEL_WIDTH 240
 #define PANEL_HEIGHT 135
@@ -46,11 +47,12 @@ typedef struct ConsoleState {
     int cmd_mode;
     int64_t lasttime;
     int lastlevel;
-    //int64_t offtime;
-    uint32_t *data; // surface data
+    uint16_t *fb_data;
+    uint16_t *data; // surface data
     int64_t time_off;
     int64_t time_on;
     QEMUTimer backlight_timer;
+
 } ConsoleState;
 
 // only one console
@@ -68,20 +70,27 @@ struct  St7789vState {
 #define TYPE_ST7789V "st7789v"
 OBJECT_DECLARE_SIMPLE_TYPE(St7789vState, ST7789V)
 
-#define PORTRAIT_X_OFFSET 52
-#define PORTRAIT_Y_OFFSET 40
-#define LANDSCAPE_X_OFFSET 40
-#define LANDSCAPE_Y_OFFSET 53
+#define PORTRAIT_X_OFFSET (52)
+#define PORTRAIT_Y_OFFSET (40)
+#define LANDSCAPE_X_OFFSET (40)
+#define LANDSCAPE_Y_OFFSET (53)
+
+#define PORTRAIT_X_OFFSET_S3 (35)
+#define PORTRAIT_Y_OFFSET_S3 (0)
+#define LANDSCAPE_X_OFFSET_S3 (0)
+#define LANDSCAPE_Y_OFFSET_S3 (35)
 
 #define SKIN_PORTRAIT_X_OFFSET (62/2)
 #define SKIN_PORTRAIT_Y_OFFSET (126/2)
 #define SKIN_LANDSCAPE_X_OFFSET (126/2)
 #define SKIN_LANDSCAPE_Y_OFFSET (82/2)
 
-#define SKIN_PORTRAIT_X_OFFSET_S3 (82/2)
-#define SKIN_PORTRAIT_Y_OFFSET_S3 (126/2+48)
-#define SKIN_LANDSCAPE_X_OFFSET_S3 (126/2+48)
-#define SKIN_LANDSCAPE_Y_OFFSET_S3 (82/2-8)
+#define SKIN_PORTRAIT_X_OFFSET_S3 (38/2)
+#define SKIN_PORTRAIT_Y_OFFSET_S3 (126/2)
+#define SKIN_LANDSCAPE_X_OFFSET_S3 (126/2)
+#define SKIN_LANDSCAPE_Y_OFFSET_S3 (35/2)
+
+#define DEBUG 0
 
 typedef struct { uint8_t r; uint8_t g; uint8_t b; uint8_t a;} pixel;
 
@@ -99,19 +108,34 @@ extern image_header ttgos3_board_skin;
 image_header *board_skin=&ttgos3_board_skin;
 
 
+static uint16_t argbto565(uint32_t argb)
+{
+    uint8_t r = (argb >> 16) & 0xFF;
+    uint8_t g = (argb >> 8) & 0xFF;
+    uint8_t b = (argb )  & 0xFF;
+
+    return (uint16_t)(
+        ((r >> 3) << 11) |  // 5 bits red
+        ((g >> 2) << 5)  |  // 6 bits green
+        ( b >> 3)           // 5 bits blue
+    );
+}
+
 static void draw_skin(ConsoleState *c) {
-    volatile uint32_t *dest = c->data;
+    volatile uint16_t *dest = c->data;
     for (int i = 0; i < board_skin->height; i++)
         for (int j = 0; j < board_skin->width; j++) {
             pixel p = board_skin->pixel_data[i * board_skin->width + j];
             uint32_t rgba= (p.a<<24) | (p.r<<16) | (p.g<<8) | p.b;
             if (p.a < 200)
                 rgba=0xff000000;
+            uint16_t rgb565=argbto565(rgba);
             if (c->width < c->height)  // portrait
-                dest[i * board_skin->width + j] = rgba;
+                dest[i * board_skin->width + j] = rgb565;
             else
-                dest[(board_skin->width - j - 1) * board_skin->height +i] = rgba;
+                dest[(board_skin->width - j - 1) * board_skin->height +i] = rgb565;
         }
+    dpy_gfx_update_full(c->con);
 }
 static void bl_timer_cb(void *v) {
     uint64_t now=qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
@@ -121,7 +145,9 @@ static void bl_timer_cb(void *v) {
     } else {
         c->backlight=(c->time_on*256)/(c->time_on+c->time_off);
     }
-  //  printf("bl:%ld %ld %d\n",c->time_on,c->time_off, c->backlight);
+    c->redraw=1;
+    if(DEBUG)
+        printf("bl:%d %d %d\n",(int)c->time_on,(int)c->time_off, c->backlight);
     c->time_on=0;
     c->time_off=0;
     timer_mod_ns(&console_state.backlight_timer, now + 100000000);
@@ -134,6 +160,11 @@ static void set_portrait(St7789vState *s) {
         board_skin=&ttgo_board_skin;
     qemu_console_resize(c->con, board_skin->width,
                         board_skin->height);
+    DisplaySurface *surface=qemu_create_displaysurface_from(board_skin->width, board_skin->height,
+                                                PIXMAN_r5g6b5,
+                                                board_skin->width*2, NULL);
+    dpy_gfx_replace_surface(c->con,surface);
+
     c->data=surface_data(qemu_console_surface(c->con));
     c->width = PANEL_HEIGHT;
     c->height = PANEL_WIDTH;
@@ -142,6 +173,10 @@ static void set_portrait(St7789vState *s) {
     c->skin_x_offset = SKIN_PORTRAIT_X_OFFSET;
     c->skin_y_offset = SKIN_PORTRAIT_Y_OFFSET;
     if(s->iss3) {
+        c->width = 170;
+        c->height = 320;
+        c->x_offset = PORTRAIT_X_OFFSET_S3;
+        c->y_offset = PORTRAIT_Y_OFFSET_S3;
         c->skin_x_offset = SKIN_PORTRAIT_X_OFFSET_S3;
         c->skin_y_offset = SKIN_PORTRAIT_Y_OFFSET_S3;
     }
@@ -157,6 +192,10 @@ static void set_landscape(St7789vState *s) {
         board_skin=&ttgo_board_skin;
     qemu_console_resize(c->con, board_skin->height,
                     board_skin->width);
+    DisplaySurface *surface=qemu_create_displaysurface_from(board_skin->height, board_skin->width,
+                                                PIXMAN_r5g6b5,
+                                                board_skin->height*2, NULL);
+    dpy_gfx_replace_surface(c->con,surface);
     c->data=surface_data(qemu_console_surface(c->con));
     c->width = PANEL_WIDTH;
     c->height = PANEL_HEIGHT;
@@ -165,6 +204,10 @@ static void set_landscape(St7789vState *s) {
     c->skin_x_offset = SKIN_LANDSCAPE_X_OFFSET;
     c->skin_y_offset = SKIN_LANDSCAPE_Y_OFFSET;
     if(s->iss3) {
+        c->width = 320;
+        c->height = 170;
+        c->x_offset = LANDSCAPE_X_OFFSET_S3;
+        c->y_offset = LANDSCAPE_Y_OFFSET_S3;
         c->skin_x_offset = SKIN_LANDSCAPE_X_OFFSET_S3;
         c->skin_y_offset = SKIN_LANDSCAPE_Y_OFFSET_S3;
     }
@@ -178,11 +221,13 @@ static uint32_t st7789v_transfer(SSIPeripheral *dev, uint32_t data)
 {
     ConsoleState *c=&console_state;
     St7789vState *s = ST7789V(dev);
-//    printf(" st7789 %x %x\n", c->current_command, data);
+    
     uint8_t *bytes;
     if(c->cmd_mode) {
         c->current_command=data;
     } else {
+        if(DEBUG && c->current_command!=0x2c)
+            printf(" st7789 %x %x\n", c->current_command, data);
         switch (c->current_command) {
             case ST7789_MADCTL:
                 if (data == 0 || data == 8) {  // portrait
@@ -221,30 +266,9 @@ static uint32_t st7789v_transfer(SSIPeripheral *dev, uint32_t data)
                     if(!c->little_endian) {
                         d16=(d16>>8) | (d16<<8);
                     }
-                    int brightness=c->backlight;
-                    int d32;
-                    if(brightness==256) {
-                        d32=((d16 & 0xf800) << 8) |
-                            ((d16 & 0x7e0) << 5) | 
-                            ((d16 & 0x1f) << 3) | (0x80<<24);
-                    } else {
-                        if(brightness==0) d32=0;
-                        else {
-                            int r=(d16 & 0xf800)>>8;
-                            int g=(d16 & 0x7e0)>>3;
-                            int b=(d16 & 0x1f)<<3;
-                            r=(r*brightness)>>8;
-                            g=(g*brightness)>>8;
-                            b=(b*brightness)>>8;
-                            d32=r<<16 | g<<8 | b; 
-                        }
-                    }
-//                    if(!c->backlight)
-//                        d32=(d32>>2)&0x3f3f3f;
-                    uint32_t offset = (c->y - c->y_offset + c->skin_y_offset) * 
-                        c->skin_width + c->x - c->x_offset + c->skin_x_offset;
-                    if(offset<board_skin->height*board_skin->width)
-                        c->data[offset] = d32;
+                    uint32_t offset = c->y * 320 + c->x;
+                    if(offset<320*320)
+                        c->fb_data[offset] = d16;
                     c->x++;
                     if (c->x > c->x_end) {
                         c->x = c->x_start;
@@ -267,6 +291,8 @@ static uint32_t st7789v_transfer(SSIPeripheral *dev, uint32_t data)
 /* Command/data input.  */
 static void st7789v_cd(void *opaque, int n, int level)
 {
+    if(DEBUG)
+        printf("st7789v_cd %d\n",level);
     ConsoleState *c=&console_state;
     c->cmd_mode = !level;
 }
@@ -274,15 +300,15 @@ static void st7789v_cd(void *opaque, int n, int level)
 static void st7789v_backlight(void *opaque, int n, int level)
 {
     int64_t now=qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    if(DEBUG)
+        printf("st7789v_backlight %d\n",level);
     ConsoleState *c=&console_state;
-  //  if(level==c->lastlevel) return;
     int v=level&1;
     int t=c->lastlevel>>1;
     c->lastlevel=level;
     if(t!=0) {
         now=c->lasttime+t;
     }
-  //  printf("bl=%ld %d\n",now, level);
     if(now-c->lasttime<100000000) {
         if(v==0) {
             c->time_on+=now-c->lasttime;
@@ -291,12 +317,7 @@ static void st7789v_backlight(void *opaque, int n, int level)
         }
     } else {
         c->backlight=256*v;
-        volatile unsigned *dest = c->data;
-        uint32_t px=v?(64<<16)|(64<<8)|(64):0;
-        for(int y=0;y<c->height;y++)
-            for(int x=0;x<c->width;x++)
-                dest[(y+c->skin_y_offset)*c->skin_width+x+c->skin_x_offset]=px^(rand()&0x0f0f0f);
-        dpy_gfx_update(c->con, c->skin_x_offset, c->skin_y_offset, c->width, c->height);
+        c->redraw=1;
     }
     c->lasttime=now;
 }
@@ -305,8 +326,25 @@ static void st7789_update_display(void *opaque) {
     ConsoleState *c = &console_state;
     if (!c->redraw) return;
     c->redraw = 0;
-    dpy_gfx_update_full(c->con);
-//    dpy_gfx_update(c->con, c->skin_x_offset, c->skin_y_offset, c->width, c->height);
+
+    for(int y=0;y<c->height;y++) {
+        for(int x=0;x<c->width;x++) {
+            uint16_t rgb565=c->fb_data[(y+c->y_offset)*320+x+c->x_offset];
+            if(c->backlight<255) {
+                uint32_t r=(rgb565>>8) & 0xf8;
+                uint32_t g=(rgb565>>3) & 0xfc;
+                uint32_t b=(rgb565<<2) & 0xf8;
+                r=(r*c->backlight)/256;
+                g=(g*c->backlight)/256;
+                b=(b*c->backlight)/256;
+                rgb565=(uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5)  | ( b >> 3));
+            }
+            uint32_t index=(y+c->skin_y_offset)*c->skin_width+x+c->skin_x_offset;
+            if(index<320*320)
+              c->data[index]=rgb565;
+        }
+    }
+    dpy_gfx_update(c->con, c->skin_x_offset, c->skin_y_offset, c->width, c->height);
 }
 
 static void st7789_invalidate_display(void *opaque) {
@@ -319,7 +357,6 @@ static const GraphicHwOps st7789_ops = {
     .gfx_update = st7789_update_display,
 };
 
-//extern int touch_sensor[14];
 #define PW 1200
 static void keyboard_event(DeviceState *dev, QemuConsole *src,
                                 InputEvent *evt) {
@@ -373,7 +410,6 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                     qemu_set_irq(s->touch_sensor[i],0);
                 break;
             }
-// printf("xpos=%d ypos=%d\n",xpos,ypos);
             if (portrait) {
                 if(s->iss3) {
                     if (xpos > 24575 && xpos < 30561 && ypos > 30063 &&
@@ -435,7 +471,6 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                         ypos < 29931) {
                         qemu_set_irq(s->button[0], up);
                     }
-
                     if (xpos > 25382 && xpos < 30561 && ypos > 30063 &&
                         ypos < 31382 && up == 0)
                         qemu_set_irq(s->reset, 1);
@@ -452,20 +487,15 @@ static void keyboard_event(DeviceState *dev, QemuConsole *src,
                         up == 0)
                         qemu_set_irq(s->reset, 1);
                 }
-                /*
-                int xs[] = {0,     0, 12166, 13618, 15277,
-                            16798, 0, 18388, 12166, 13791};
-                int ys[] = {0,     0, 31743, 31743, 31743,
-                            31743, 0, 2993,  2993,  2993};
-                for (int i = 2; i < 10; i++) {
-                    if (i != 6) {
-                        if (xpos > (xs[i] - PW) && xpos < (xs[i] + PW) &&
-                            ypos > (ys[i] - PW) && ypos < (ys[i] + PW))
-                           // touch_sensor[i] = 1000;
-
-                    }
+                
+                int xs[] = {12166, 13618, 12166, 13791};
+                int ys[] = {31743, 31743, 2993,  2993};
+                for (int i = 0; i < 4; i++) {
+                    if (xpos > (xs[i] - PW) && xpos < (xs[i] + PW) &&
+                        ypos > (ys[i] - PW) && ypos < (ys[i] + PW))
+                        qemu_set_irq(s->touch_sensor[i], 1000);
                 }
-                    */
+                    
             }
             break;
         default:
@@ -500,10 +530,13 @@ static void st7789v_realize(SSIPeripheral *d, Error **errp) {
     if (console_state.con == 0) {
         ConsoleState *c=&console_state;
         s->con=c;
-        console_state.con = graphic_console_init(dev, 0, &st7789_ops, s);
+        c->con = graphic_console_init(dev, 0, &st7789_ops, s);
+
         int64_t now=qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
         c->lastlevel=0;
         c->lasttime=now;
+        c->cmd_mode=1;
+        c->fb_data=malloc(320*320*2);
         timer_init_ns(&c->backlight_timer,QEMU_CLOCK_VIRTUAL, bl_timer_cb,0);
         timer_mod_ns(&c->backlight_timer, now + 100000000);
         set_landscape(s);
@@ -522,7 +555,7 @@ static void st7789v_reset(DeviceState *dev) {
 static void st7789v_class_init(ObjectClass *klass, void *data) {
     DeviceClass *dc = DEVICE_CLASS(klass);
     SSIPeripheralClass *k = SSI_PERIPHERAL_CLASS(klass);
-    dc->legacy_reset = st7789v_reset;
+    device_class_set_legacy_reset(dc,st7789v_reset);
     k->realize = st7789v_realize;
     k->transfer = st7789v_transfer;
     k->cs_polarity = SSI_CS_NONE;

@@ -93,6 +93,7 @@ typedef struct Esp32RtcCntlState {
     uint32_t sw_cpu_stall_reg;
     uint32_t wakeup_state_reg;
     uint32_t wakeup_conf;
+    uint32_t ext_wakeup1;
     uint32_t low_power_state_reg;
     uint32_t scratch_reg[ESP32_RTC_CNTL_SCRATCH_REG_COUNT];
     uint32_t mem_conf;
@@ -189,6 +190,15 @@ REG32(RTC_CNTL_STORE7, 0xbc)
 
 REG32(RTC_CNTL_LOW_POWER_ST_REG, 0xc0)
     FIELD(RTC_CNTL_LOW_POWER_ST_REG, RTC_RDY_FOR_WAKEUP, 19,1)
+
+REG32(RTC_CNTL_EXT_WAKEUP1, 0xcc)
+    FIELD(RTC_CNTL_EXT_WAKEUP1, SEL, 0, 18)
+
+REG32(RTC_CNTL_ULP_CP_TIMER, 0xfc)
+    FIELD(RTC_CNTL_ULP_CP_TIMER,PC_INIT,0,11)
+    FIELD(RTC_CNTL_ULP_CP_TIMER,GPIO_WAKEUP_ENA, 29,1)
+    FIELD(RTC_CNTL_ULP_CP_TIMER,GPIO_WAKEUP_CLR, 30,1)
+    FIELD(RTC_CNTL_ULP_CP_TIMER,SLP_TIMER_EN, 31,1)
 
 REG32(RTC_MEM_CONF, 0x100)
     FIELD(RTC_MEM_CONF, CRC_FINISH, 31,1)

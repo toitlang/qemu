@@ -11,10 +11,11 @@
 typedef struct Esp32S3SensState {
     SysBusDevice parent_obj;
     MemoryRegion iomem;
+    uint32_t touch_sensor[14];
 } Esp32S3SensState;
 
 REG32(SENS_SAR_MEAS1_CTRL2_REG, 0x00c)
 REG32(SENS_SAR_TOUCH_CHN_ST_REG, 0x09c)
-
+REG32(SENS_SAR_TSENS_CTRL_REG, 0x050)
 
 

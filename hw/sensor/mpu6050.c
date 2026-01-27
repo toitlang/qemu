@@ -339,7 +339,7 @@ static void mpu6050_class_init(ObjectClass *klass, void *data)
 {
     I2CSlaveClass *sc = I2C_SLAVE_CLASS(klass);
     DeviceClass *dc = DEVICE_CLASS(klass);
-    dc->legacy_reset = mpu6050_reset;
+    device_class_set_legacy_reset(dc, mpu6050_reset);
     sc->event = mpu6050_event;
     sc->send = mpu6050_i2c_send;
     sc->recv = mpu6050_i2c_recv;

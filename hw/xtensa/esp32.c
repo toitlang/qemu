@@ -237,6 +237,7 @@ static void esp32_soc_reset(DeviceState *dev)
         }
         device_cold_reset(DEVICE(&s->rmt));
         device_cold_reset(DEVICE(&s->ledc));
+        
     }
     if (s->requested_reset & ESP32_SOC_RESET_PROCPU) {
         xtensa_select_static_vectors(&s->cpu[0].env, s->rtc_cntl.stat_vector_sel[0]);
@@ -416,10 +417,8 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
     qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32_ULP_TIMER_GPIO, 0,
                                     qdev_get_gpio_in_named(DEVICE(&s->ulp_cpu), ULP_TIMER_GPIO, 0));
 
-    qdev_connect_gpio_out_named(DEVICE(&s->sens), ESP32_START_ULP_GPIO, 0,
-                                    qdev_get_gpio_in_named(DEVICE(&s->ulp_cpu), ULP_START_GPIO, 0));
-
-    
+    qdev_connect_gpio_out_named(DEVICE(&s->sens), ESP32_SET_ULP_PC_GPIO, 0,
+                                    qdev_get_gpio_in_named(DEVICE(&s->ulp_cpu), ULP_SET_PC_GPIO, 0));
 
     qdev_connect_gpio_out_named(DEVICE(&s->ulp_cpu), ULP_WAKEUP_GPIO, 0,
                                     qdev_get_gpio_in_named(dev, ESP32_RTCIO_WAKEUP_GPIO, 0));
@@ -689,6 +688,11 @@ static void esp32_soc_realize(DeviceState *dev, Error **errp)
     qdev_connect_gpio_out_named(disp, "reset", 0,
                                     qdev_get_gpio_in_named(dev, "full_reset", 0));
 
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 0, qdev_get_gpio_in_named(DEVICE(&s->sens), "touch_sensor", 2));
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 1, qdev_get_gpio_in_named(DEVICE(&s->sens), "touch_sensor", 3));
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 2, qdev_get_gpio_in_named(DEVICE(&s->sens), "touch_sensor", 8));
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 3, qdev_get_gpio_in_named(DEVICE(&s->sens), "touch_sensor", 9));
+    
 
 
     /* Emulation of a fake register used to mark that the chip is run via QEMU */

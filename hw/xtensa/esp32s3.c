@@ -83,6 +83,8 @@
 #include "cpu_esp32s3.h"
 
 #include "hw/misc/esp32c3_jtag.h"
+
+#include "hw/xtensa/ulp_cpu.h"
 //#include "hw/display/esp_rgb.h"
 
 #define TYPE_ESP32S3_SOC "xtensa.esp32s3"
@@ -135,6 +137,8 @@ typedef struct Esp32s3SocState {
 
     /*< public >*/
     XtensaCPU cpu[ESP32S3_CPU_COUNT];
+    ULPCPU ulp_cpu;
+
     Esp32s3IntMatrixState intmatrix;
     ESP32S3UARTState uart[ESP32S3_UART_COUNT];
     ESP32S3GPIOState gpio;
@@ -228,9 +232,41 @@ static void esp32s3_cpu_reset(void* opaque, int n, int level)
     }
 }
 
+static void esp32s3_rtc_wakeup(void* opaque, int n, int level)
+{
+    Esp32s3SocState *s = ESP32S3_SOC(opaque);
+    
+    //printf("rtc wakeup %d\n",level);
+    timer_del(&s->rtc_cntl.sleep_timer);
+    if(level) {
+        // are we in light sleep
+        bool deep_sleep=FIELD_EX32(s->rtc_cntl.dig_pwc,RTC_CNTL_DIG_PWC,DG_WRAP_PD_EN);
+        s->rtc_cntl.state0 = FIELD_DP32(s->rtc_cntl.state0, RTC_CNTL_STATE0, SLEEP_EN, 0);
+        s->rtc_cntl.wakeup_cause = level;//FIELD_DP32(s->rtc_cntl.wakeup_cause, RTC_CNTL_WAKEUP_STATE, WAKEUP_CAUSE, level);
+        if(!deep_sleep) {
+            //printf("light sleep\n");
+            s->rtc_cntl.int_raw= 1 | (1<<5);
+            qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
+            if(s->rtc_cntl.int_raw & s->rtc_cntl.int_en)
+                qemu_irq_raise(s->rtc_cntl.irq);
+            return;
+        } else {
+           // printf("deep sleep\n");
+            s->requested_reset = ESP32S3_SOC_RESET_DIG;
+            for (int i = 0; i < ESP32S3_CPU_COUNT; ++i) {
+                s->rtc_cntl.reset_cause[i] = ESP32_DEEPSLEEP_RESET;
+            }
+            qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
+            qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+            s->rtc_cntl.dig_pwc=FIELD_DP32(s->rtc_cntl.dig_pwc,RTC_CNTL_DIG_PWC,DG_WRAP_PD_EN,0);
+        }
+}
+}
+
 static void esp32s3_soc_reset(DeviceState *dev)
 {
     Esp32s3SocState *s = ESP32S3_SOC(dev);
+    //printf("soc_reset %d\n",s->requested_reset);
     if (s->requested_reset == 0) {
         s->requested_reset = ESP32S3_SOC_RESET_ALL;
     }
@@ -469,7 +505,7 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
     for (int i = 0; i < ms->smp.cpus; ++i) {
         qdev_realize(DEVICE(&s->cpu[i]), NULL, &error_fatal);
     }
-
+    qdev_realize(DEVICE(&s->ulp_cpu), NULL, &error_fatal);
 
     for (int i = 0; i < ESP32S3_CPU_COUNT; ++i) {
         char name[16];
@@ -484,6 +520,17 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
 
     qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_RTC_DIG_RESET_GPIO, 0,
                                 qdev_get_gpio_in_named(dev, ESP32S3_RTC_DIG_RESET_GPIO, 0));
+    qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_RTC_WAKEUP_GPIO, 0,
+                                qdev_get_gpio_in_named(dev, ESP32S3_RTC_WAKEUP_GPIO, 0));
+    qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_ULP_TIMER_GPIO, 0,
+                                    qdev_get_gpio_in_named(DEVICE(&s->ulp_cpu), ULP_TIMER_GPIO, 0));
+    qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_SET_ULP_PC_GPIO, 0,
+                                    qdev_get_gpio_in_named(DEVICE(&s->ulp_cpu), ULP_SET_PC_GPIO, 0));
+
+    qdev_connect_gpio_out_named(DEVICE(&s->ulp_cpu), ULP_WAKEUP_GPIO, 0,
+                                    qdev_get_gpio_in_named(dev, ESP32S3_RTC_WAKEUP_GPIO, 0));
+
+
     
     
     for (int i = 0; i < ms->smp.cpus; ++i) {
@@ -492,6 +539,9 @@ static void esp32s3_soc_realize(DeviceState *dev, Error **errp)
         qdev_connect_gpio_out_named(DEVICE(&s->rtc_cntl), ESP32S3_RTC_CPU_STALL_GPIO, i,
                                     qdev_get_gpio_in_named(dev, ESP32S3_RTC_CPU_STALL_GPIO, i));
     }
+
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->rtc_cntl), 0,
+                       qdev_get_gpio_in(intmatrix_dev, ETS_RTC_CORE_INTR_SOURCE));
 
     for (int i = 0; i < ESP32S3_UART_COUNT; ++i) {
         const hwaddr uart_base[] = {DR_REG_UART_BASE, DR_REG_UART1_BASE, DR_REG_UART2_BASE};
@@ -626,6 +676,8 @@ static void esp32s3_soc_init(Object *obj)
         cs->memory = &s->cpu_specific_mem[i];
     }
 
+    object_initialize_child(obj, "ulp_cpu", &s->ulp_cpu, TYPE_ULP_CPU);
+
     for (int i = 0; i < ESP32S3_UART_COUNT; ++i) {
         snprintf(name, sizeof(name), "uart%d", i);
         object_initialize_child(obj, name, &s->uart[i], TYPE_ESP32S3_UART);
@@ -646,6 +698,7 @@ static void esp32s3_soc_init(Object *obj)
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_cpu_reset,  ESP32S3_RTC_CPU_RESET_GPIO, ESP32S3_CPU_COUNT);
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_cpu_stall,  ESP32S3_RTC_CPU_STALL_GPIO, ESP32S3_CPU_COUNT);
     qdev_init_gpio_in_named(DEVICE(s), esp32s3_clk_update, ESP32S3_CLK_UPDATE_GPIO, 1);
+    qdev_init_gpio_in_named(DEVICE(s), esp32s3_rtc_wakeup, ESP32S3_RTC_WAKEUP_GPIO, 1);
 }
 
 static Property esp32s3_soc_properties[] = {
@@ -749,8 +802,6 @@ static void esp32s3_machine_init(MachineState *machine)
 
     qdev_realize(DEVICE(ss), NULL, &error_fatal);
 
-    
-
     object_initialize_child(OBJECT(ss), "extmem", &ss->cache, TYPE_ESP32S3_CACHE);
     object_initialize_child(OBJECT(ss), "spi0", &ss->spi0, TYPE_ESP32S3_SPI);
     object_initialize_child(OBJECT(ss), "spi1", &ss->spi1, TYPE_ESP32S3_SPI);
@@ -759,9 +810,9 @@ static void esp32s3_machine_init(MachineState *machine)
     object_initialize_child(OBJECT(ss), "jtag", &ss->jtag, TYPE_ESP32C3_JTAG);
     object_initialize_child(OBJECT(ss), "gpio", &ss->gpio, TYPE_ESP32S3_GPIO);
     object_initialize_child(OBJECT(ss), "rng", &ss->rng, TYPE_ESP32S3_RNG);
-   object_initialize_child(OBJECT(ss), "rmt", &ss->rmt, TYPE_ESP32S3_RMT);
-   object_initialize_child(OBJECT(ss), "ana", &ss->ana, TYPE_ESP32_ANA);
-   object_initialize_child(OBJECT(ss), "fe", &ss->fe, TYPE_ESP32_FE);
+    object_initialize_child(OBJECT(ss), "rmt", &ss->rmt, TYPE_ESP32S3_RMT);
+    object_initialize_child(OBJECT(ss), "ana", &ss->ana, TYPE_ESP32_ANA);
+    object_initialize_child(OBJECT(ss), "fe", &ss->fe, TYPE_ESP32_FE);
 
     object_initialize_child(OBJECT(ss), "phya", &ss->phya, TYPE_ESP32_PHYA);
 
@@ -795,6 +846,7 @@ static void esp32s3_machine_init(MachineState *machine)
     ss->ana.iss3=1;
     ss->i2c[0].iss3=1;
     ss->i2c[1].iss3=1;
+    ss->ulp_cpu.env.v2=true;
 
     DeviceState* intmatrix_dev = DEVICE(&ss->intmatrix);
     {
@@ -919,6 +971,10 @@ static void esp32s3_machine_init(MachineState *machine)
         sysbus_connect_irq(SYS_BUS_DEVICE(&ss->gpio),0,qdev_get_gpio_in(intmatrix_dev, ETS_GPIO_INTR_SOURCE));
         mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->gpio), 1);
         memory_region_add_subregion_overlap(sys_mem, DR_REG_IO_MUX_BASE, mr, 0);
+        mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&ss->gpio), 2);
+        memory_region_add_subregion_overlap(sys_mem, DR_REG_RTCIO_BASE, mr, 0);
+        qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_RTCIO_WAKEUP_GPIO, 0,
+                                qdev_get_gpio_in_named(DEVICE(ss), ESP32S3_RTC_WAKEUP_GPIO, 0));
 
     }
 
@@ -1029,7 +1085,11 @@ static void esp32s3_machine_init(MachineState *machine)
     qdev_connect_gpio_out_named(disp, "buttons", 1, in14);
     qdev_connect_gpio_out_named(disp, "reset", 0,
                                     qdev_get_gpio_in_named(DEVICE(ss), ESP32S3_RTC_DIG_RESET_GPIO, 0));
-
+    
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 0, qdev_get_gpio_in_named(DEVICE(&ss->sens), "touch_sensor", 0));
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 1, qdev_get_gpio_in_named(DEVICE(&ss->sens), "touch_sensor", 1));
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 2, qdev_get_gpio_in_named(DEVICE(&ss->sens), "touch_sensor", 11));
+    qdev_connect_gpio_out_named(disp, "touch_sensor", 3, qdev_get_gpio_in_named(DEVICE(&ss->sens), "touch_sensor", 12));
 
 
     /* SHA realization */

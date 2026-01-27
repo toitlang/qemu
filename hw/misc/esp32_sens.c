@@ -18,6 +18,15 @@
 #include "hw/misc/esp32_sens.h"
 #include "hw/irq.h"
 
+#define DEBUG 0
+
+static void touch_sensor_changed(void *opaque, int n, int level) {
+    if(DEBUG)
+        printf("touch_sensor_changed %d %d\n",n,level);
+    Esp32SensState *s = ESP32_SENS(opaque);
+    s->touch_sensor[n]=level;
+}
+
 static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
 {
     Esp32SensState *s = ESP32_SENS(opaque);
@@ -44,14 +53,16 @@ static uint64_t esp32_sens_read(void *opaque, hwaddr addr, unsigned int size)
         r = s->ulp_sleep_cyc[(addr-A_SENS_ULP_CP_SLEEP_CYC0)/4];
         break;
     }
-  //  printf("esp32_sens_read %lx=%x\n",addr,r);
+    if(DEBUG)
+        printf("esp32_sens_read %x=%x\n",(uint32_t)addr,r);
     return r;
 }
 
 static void esp32_sens_write(void *opaque, hwaddr addr, uint64_t value,
                                  unsigned int size) {
     Esp32SensState *s = ESP32_SENS(opaque);
-//    printf("esp32_sens_write %lx=%lx\n",addr,value);
+    if(DEBUG)
+        printf("esp32_sens_write %x=%x\n",(uint32_t)addr,(uint32_t)value);
     switch(addr) {
     case A_SENS_SAR_I2C_CTRL:
         s->i2c_ctrl=(uint32_t)value;
@@ -83,7 +94,8 @@ static void esp32_sens_init(Object *obj)
                           TYPE_ESP32_SENS, 0x400);
     s->ulp_sleep_cyc[0]=200;
     sysbus_init_mmio(sbd, &s->iomem);
-    qdev_init_gpio_out_named(DEVICE(sbd), &s->start_ulp, ESP32_START_ULP_GPIO, 1);
+    qdev_init_gpio_out_named(DEVICE(sbd), &s->start_ulp, ESP32_SET_ULP_PC_GPIO, 1);
+    qdev_init_gpio_in_named(DEVICE(sbd), touch_sensor_changed,"touch_sensor", 10);
 }
 
 

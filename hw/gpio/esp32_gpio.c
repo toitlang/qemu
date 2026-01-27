@@ -265,50 +265,51 @@ static const char *int_types[8]={"","IRQ Rising","IRQ Falling","IRQ Any","IRQ Lo
 struct pin_mux {
     int         pinnum;
     int         reset;
+    int         rtc_gpio;
     const char* pinname;
     const char* functions[6];
 } io_mux_pins[] = {
-    { 0, 3,"GPIO0", { "GPIO0", "CLK_OUT1", "GPIO0", "-", "-", "EMAC_TX_CLK" } },
-    { 1, 3,"U0TXD", { "U0TXD", "CLK_OUT3", "GPIO1", "-", "-", "EMAC_RXD2" } },
-    { 2, 2,"GPIO2", { "GPIO2", "HSPIWP", "GPIO2", "HS2_DATA0", "SD_DATA0", "-" } },
-    { 3, 3,"U0RXD", { "U0RXD", "CLK_OUT2", "GPIO3", "-", "-", "-" } },
-    { 4, 2,"GPIO4", { "GPIO4", "HSPIHD", "GPIO4", "HS2_DATA1", "SD_DATA1", "EMAC_TX_ER" } },
-    { 5, 3,"GPIO5", { "GPIO5", "VSPICS0", "GPIO5", "HS1_DATA6", "-", "EMAC_RX_CLK" } },
-    { 6, 3,"SD_CLK", { "SD_CLK", "SPICLK", "GPIO6", "HS1_CLK", "U1CTS", "-" } },
-    { 7, 3,"SD_DATA_0", { "SD_DATA0", "SPIQ", "GPIO7", "HS1_DATA0", "U2RTS", "-" } },
-    { 8, 3,"SD_DATA_1", { "SD_DATA1", "SPID", "GPIO8", "HS1_DATA1", "U2CTS", "-" } },
-    { 9, 3,"SD_DATA_2", { "SD_DATA2", "SPIHD", "GPIO9", "HS1_DATA2", "U1RXD", "-" } },
-    { 10, 3,"SD_DATA_3", { "SD_DATA3", "SPIWP", "GPIO10", "HS1_DATA3", "U1TXD", "-" } },
-    { 11, 3,"SD_CMD", { "SD_CMD", "SPICS0", "GPIO11", "HS1_CMD", "U1RTS", "-" } },
-    { 12, 2,"MTDI", { "MTDI", "HSPIQ", "GPIO12", "HS2_DATA2", "SD_DATA2", "EMAC_TXD3" } },
-    { 13, 2,"MTCK", { "MTCK", "HSPID", "GPIO13", "HS2_DATA3", "SD_DATA3", "EMAC_RX_ER" } },
-    { 14, 3,"MTMS", { "MTMS", "HSPICLK", "GPIO14", "HS2_CLK", "SD_CLK", "EMAC_TXD2" } },
-    { 15, 3,"MTDO", { "MTDO", "HSPICS0", "GPIO15", "HS2_CMD", "SD_CMD", "EMAC_RXD3" } },
-    { 16, 1,"GPIO16", { "GPIO16", "-", "GPIO16", "HS1_DATA4", "U2RXD", "EMAC_CLK_OUT1" } },
-    { 17, 1,"GPIO17", { "GPIO17", "-", "GPIO17", "HS1_DATA5", "U2TXD", "EMAC_CLK_1801" } },
-    { 18, 1,"GPIO18", { "GPIO18", "VSPICLK", "GPIO18", "HS1_DATA7", "-", "-" } },
-    { 19, 1,"GPIO19", { "GPIO19", "VSPIQ", "GPIO19", "U0CTS", "-", "EMAC_TXD0" } },
-    { 19, 1,"GPIO20", { "GPIO20", "-", "-", "-", "-", "-" } },
-    { 21, 1,"GPIO21", { "GPIO21", "VSPIHD", "GPIO21", "-", "-", "EMAC_TX_EN" } },
-    { 22, 1,"GPIO22", { "GPIO22", "VSPIWP", "GPIO22", "U0RTS", "-", "EMAC_TXD1" } },
-    { 23, 1,"GPIO23", { "GPIO23", "VSPID", "GPIO23", "HS1_STROBE", "-", "-" } },
-    { 24, 0,"GPIO24", { "GPIO24", "-", "-", "-", "-", "-" } },
-    { 25, 0,"GPIO25", { "GPIO25", "-", "GPIO25", "-", "-", "EMAC_RXD0" } },
-    { 26, 0,"GPIO26", { "GPIO26", "-", "GPIO26", "-", "-", "EMAC_RXD1" } },
-    { 27, 0,"GPIO27", { "GPIO27", "-", "GPIO27", "-", "-", "EMAC_RX_DV" } },
-    { 28, 0,"GPIO28", { "GPIO28", "-", "-", "-", "-", "-" } },
-    { 29, 0,"GPIO29", { "GPIO29", "-", "-", "-", "-", "-" } },
-    { 30, 0,"GPIO30", { "GPIO30", "-", "-", "-", "-", "-" } },
-    { 31, 0,"GPIO31", { "GPIO31", "-", "-", "-", "-", "-" } },
-    { 32, 0,"32K_XP", { "GPIO32", "-", "GPIO32", "-", "-", "-" } },
-    { 33, 0,"32K_XN", { "GPIO33", "-", "GPIO33", "-", "-", "-" } },
-    { 34, 0,"VDET_1", { "GPIO34", "-", "GPIO34", "-", "-", "-" } },
-    { 35, 0,"VDET_2", { "GPIO35", "-", "GPIO35", "-", "-", "-" } },
-    { 36, 0,"SENSOR_VP", { "GPIO36", "-", "GPIO36", "-", "-", "-" } },
-    { 37, 0,"SENSOR_CAPP", { "GPIO37", "-", "GPIO37", "-", "-", "-" } },
-    { 38, 0,"SENSOR_CAPN", { "GPIO38", "-", "GPIO38", "-", "-", "-" } },
-    { 39, 0,"SENSOR_VN", { "GPIO39", "-", "GPIO39", "-", "-", "-" } },
-    { -1, 0,"", { "" } },
+    { 0, 3, 11, "GPIO0", { "GPIO0", "CLK_OUT1", "GPIO0", "-", "-", "EMAC_TX_CLK" } },
+    { 1, 3, -1, "U0TXD", { "U0TXD", "CLK_OUT3", "GPIO1", "-", "-", "EMAC_RXD2" } },
+    { 2, 2, 12, "GPIO2", { "GPIO2", "HSPIWP", "GPIO2", "HS2_DATA0", "SD_DATA0", "-" } },
+    { 3, 3, -1, "U0RXD", { "U0RXD", "CLK_OUT2", "GPIO3", "-", "-", "-" } },
+    { 4, 2, 10, "GPIO4", { "GPIO4", "HSPIHD", "GPIO4", "HS2_DATA1", "SD_DATA1", "EMAC_TX_ER" } },
+    { 5, 3, -1, "GPIO5", { "GPIO5", "VSPICS0", "GPIO5", "HS1_DATA6", "-", "EMAC_RX_CLK" } },
+    { 6, 3, -1, "SD_CLK", { "SD_CLK", "SPICLK", "GPIO6", "HS1_CLK", "U1CTS", "-" } },
+    { 7, 3, -1, "SD_DATA_0", { "SD_DATA0", "SPIQ", "GPIO7", "HS1_DATA0", "U2RTS", "-" } },
+    { 8, 3, -1, "SD_DATA_1", { "SD_DATA1", "SPID", "GPIO8", "HS1_DATA1", "U2CTS", "-" } },
+    { 9, 3, -1, "SD_DATA_2", { "SD_DATA2", "SPIHD", "GPIO9", "HS1_DATA2", "U1RXD", "-" } },
+    { 10, 3, -1, "SD_DATA_3", { "SD_DATA3", "SPIWP", "GPIO10", "HS1_DATA3", "U1TXD", "-" } },
+    { 11, 3, -1, "SD_CMD", { "SD_CMD", "SPICS0", "GPIO11", "HS1_CMD", "U1RTS", "-" } },
+    { 12, 2, 15, "MTDI", { "MTDI", "HSPIQ", "GPIO12", "HS2_DATA2", "SD_DATA2", "EMAC_TXD3" } },
+    { 13, 2, 14, "MTCK", { "MTCK", "HSPID", "GPIO13", "HS2_DATA3", "SD_DATA3", "EMAC_RX_ER" } },
+    { 14, 3, 16, "MTMS", { "MTMS", "HSPICLK", "GPIO14", "HS2_CLK", "SD_CLK", "EMAC_TXD2" } },
+    { 15, 3, 15, "MTDO", { "MTDO", "HSPICS0", "GPIO15", "HS2_CMD", "SD_CMD", "EMAC_RXD3" } },
+    { 16, 1, -1, "GPIO16", { "GPIO16", "-", "GPIO16", "HS1_DATA4", "U2RXD", "EMAC_CLK_OUT1" } },
+    { 17, 1, -1, "GPIO17", { "GPIO17", "-", "GPIO17", "HS1_DATA5", "U2TXD", "EMAC_CLK_1801" } },
+    { 18, 1, -1, "GPIO18", { "GPIO18", "VSPICLK", "GPIO18", "HS1_DATA7", "-", "-" } },
+    { 19, 1, -1, "GPIO19", { "GPIO19", "VSPIQ", "GPIO19", "U0CTS", "-", "EMAC_TXD0" } },
+    { 20, 1, -1, "GPIO20", { "GPIO20", "-", "-", "-", "-", "-" } },
+    { 21, 1, -1, "GPIO21", { "GPIO21", "VSPIHD", "GPIO21", "-", "-", "EMAC_TX_EN" } },
+    { 22, 1, -1, "GPIO22", { "GPIO22", "VSPIWP", "GPIO22", "U0RTS", "-", "EMAC_TXD1" } },
+    { 23, 1, -1, "GPIO23", { "GPIO23", "VSPID", "GPIO23", "HS1_STROBE", "-", "-" } },
+    { 24, 0, -1, "GPIO24", { "GPIO24", "-", "-", "-", "-", "-" } },
+    { 25, 0, 6, "GPIO25", { "GPIO25", "-", "GPIO25", "-", "-", "EMAC_RXD0" } },
+    { 26, 0, 7, "GPIO26", { "GPIO26", "-", "GPIO26", "-", "-", "EMAC_RXD1" } },
+    { 27, 0, 17, "GPIO27", { "GPIO27", "-", "GPIO27", "-", "-", "EMAC_RX_DV" } },
+    { 28, 0, -1, "GPIO28", { "GPIO28", "-", "-", "-", "-", "-" } },
+    { 29, 0, -1, "GPIO29", { "GPIO29", "-", "-", "-", "-", "-" } },
+    { 30, 0, -1, "GPIO30", { "GPIO30", "-", "-", "-", "-", "-" } },
+    { 31, 0, -1, "GPIO31", { "GPIO31", "-", "-", "-", "-", "-" } },
+    { 32, 0, 9, "32K_XP", { "GPIO32", "-", "GPIO32", "-", "-", "-" } },
+    { 33, 0, 8, "32K_XN", { "GPIO33", "-", "GPIO33", "-", "-", "-" } },
+    { 34, 0, 4, "VDET_1", { "GPIO34", "-", "GPIO34", "-", "-", "-" } },
+    { 35, 0, 5, "VDET_2", { "GPIO35", "-", "GPIO35", "-", "-", "-" } },
+    { 36, 0, 0, "SENSOR_VP", { "GPIO36", "-", "GPIO36", "-", "-", "-" } },
+    { 37, 0, 1, "SENSOR_CAPP", { "GPIO37", "-", "GPIO37", "-", "-", "-" } },
+    { 38, 0, 2, "SENSOR_CAPN", { "GPIO38", "-", "GPIO38", "-", "-", "-" } },
+    { 39, 0, 3, "SENSOR_VN", { "GPIO39", "-", "GPIO39", "-", "-", "-" } },
+    { -1, 0, -1, "", { "" } },
 };
 static const uint8_t GPIO_PIN_MUX_REG_OFFSET[] = {
     0x44,0x88,0x40,0x84,0x48,0x6c,0x60,0x64,0x68,0x54,0x58,0x5c,0x34,0x38,0x30,0x3c,
@@ -396,19 +397,35 @@ static void set_gpio(void *opaque, int n, int val) {
     Esp32GpioState *s = ESP32_GPIO(opaque);
     //printf("set_gpio %x %x\n",s->rtc_pad_cfg[1],s->rtc_ext_wakeup0);
     if(runstate_get()==RUN_STATE_SUSPENDED) {
-        uint32_t wakeup_state,wakeup_conf;
+        uint32_t wakeup_state,wakeup_conf,ext1_wakeup;
         uint32_t addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_WAKEUP_STATE;
         address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &wakeup_state, 4);
         addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_EXT_WAKEUP_CONF;
         address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &wakeup_conf, 4);
-//        printf("wakeup_state %x %x %x %x\n",wakeup_state,s->rtc_ext_wakeup0, wakeup_conf, s->gpio_pin[n]);
+        addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_EXT_WAKEUP1;
+        address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &ext1_wakeup, 4);
+
+    //    printf("wakeup_state %x %x %x %x\n",wakeup_state,s->rtc_ext_wakeup0, wakeup_conf, s->gpio_pin[n]);
+
 
         if(FIELD_EX32(wakeup_state,RTC_CNTL_WAKEUP_STATE,WAKEUP_ENA_EXT0)) {
+            int wakeupval=FIELD_EX32(wakeup_conf,RTC_CNTL_EXT_WAKEUP_CONF,WAKEUP0LV);
             for(int i=0;i<N_RTC_GPIOS;i++) {
-                if(n==gpio_map[i] && (s->rtc_ext_wakeup0>>27)==i && val==0) {
+                if(n==gpio_map[i] && FIELD_EX32(s->rtc_ext_wakeup0,RTC_EXT_WAKEUP0,SEL)==i && val==wakeupval) {
     //                qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
                     qemu_set_irq(s->rtc_wakeup,RTC_EXT0_TRIG_EN);
                     s->rtc_ext_wakeup0=0;
+                    break;
+                }
+            }
+        }
+        if(FIELD_EX32(wakeup_state,RTC_CNTL_WAKEUP_STATE,WAKEUP_ENA_EXT1)) {
+            int wakeupval=FIELD_EX32(wakeup_conf,RTC_CNTL_EXT_WAKEUP_CONF,WAKEUP1LV);
+            for(int i=0;i<N_RTC_GPIOS;i++) {
+                if(n==gpio_map[i] && ((ext1_wakeup>>i) & 1) && val==wakeupval) {
+    //                qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER, NULL);
+                    qemu_set_irq(s->rtc_wakeup,RTC_EXT1_TRIG_EN);
+                    //s->rtc_ext_wakeup0=0;
                     break;
                 }
             }
@@ -500,6 +517,13 @@ static const pixman_color_t GREEN=QEMU_PIXMAN_COLOR(0x00, 0xff, 0x00);
 static const pixman_color_t GREY=QEMU_PIXMAN_COLOR(0x80, 0x80, 0x80);
 static const pixman_color_t YELLOW=QEMU_PIXMAN_COLOR(0xff, 0xff, 0x00);
 
+static bool is_in_deep_sleep(void) {
+    uint32_t addr=DR_REG_RTCCNTL_BASE+A_RTC_CNTL_DIG_PWC;
+    uint32_t val;
+    address_space_read(&address_space_memory, addr, MEMTXATTRS_UNSPECIFIED, &val, 4);
+    return FIELD_EX32(val,RTC_CNTL_DIG_PWC,DG_WRAP_PD_EN);
+}
+
 static void text_console_update(void *obj) {
     Esp32GpioState *s = ESP32_GPIO(obj);
     if(!s->redraw || !qemu_console_is_visible(QEMU_CONSOLE(s->con))) return;
@@ -571,6 +595,9 @@ static void text_console_update(void *obj) {
     }
     
     int i=0;
+    
+    bool deep_sleep=is_in_deep_sleep();
+//    printf("deep_sleep %d\n",deep_sleep);
     while(gpio_matrix[i].num>=0) {
         int n=gpio_matrix[i].num;
         int in_sel=FIELD_EX32(s->gpio_in_sel[n],GPIO_FUNC_IN,SEL);
@@ -593,7 +620,7 @@ static void text_console_update(void *obj) {
     for(i=0;i<N_GPIOS;i++) {
         str[0]=0;
         strcat(str,(char *)(connections[i]));
-        draw_string_x_y(surface, 11, i+1, str,WHITE);
+        draw_string_x_y(surface, 11, i+1, str,(deep_sleep&&(io_mux_pins[i].rtc_gpio==-1))?GREY:WHITE);
     }
     dpy_gfx_update_full(QEMU_CONSOLE(s->con));
 }
@@ -683,7 +710,7 @@ static void esp32_rtc_write(void *opaque, hwaddr addr, uint64_t value,
         rtc_out|=(out<<i);
     }
     rtc_out<<=14;
-
+//    printf("RTC out %x\n",rtc_out);
     switch (addr) {
         case A_RTC_GPIO_OUT:
             rtc_out = value;
@@ -731,7 +758,8 @@ static void esp32_rtc_write(void *opaque, hwaddr addr, uint64_t value,
         else s->gpio_out1=(s->gpio_out1&(~(1<<(n-32))))|(out<<(n-32));
         
     }
-        if (s->gpio_out != oldvalue) {
+//    printf("GPIO out %x\n",s->gpio_out);
+    if (s->gpio_out != oldvalue) {
         uint32_t diff = (s->gpio_out ^ oldvalue);
         for (int i = 0; i < 32; i++) {
             if ((1 << i) & diff) {

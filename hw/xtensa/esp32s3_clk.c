@@ -70,12 +70,22 @@ static uint64_t esp32s3_clock_read(void *opaque, hwaddr addr, unsigned int size)
         case A_SYSTEM_EXTERNAL_DEVICE_ENCRYPT_DECRYPT_CONTROL:
             r = s->sys_ext_dev_enc_dec_ctrl;
             break;
+        case A_SYSTEM_RTC_FASTMEM_CONFIG:
+            r = s->mem_conf;
+            if (FIELD_EX32(r,SYSTEM_RTC_FASTMEM_CONFIG, RTC_MEM_CRC_START))
+                r = FIELD_DP32(r, SYSTEM_RTC_FASTMEM_CONFIG, RTC_MEM_CRC_FINISH, 1);
+            else
+                r = FIELD_DP32(r, SYSTEM_RTC_FASTMEM_CONFIG, RTC_MEM_CRC_FINISH, 0);
+        break;
         default:
 #if CLOCK_WARNING
             warn_report("[CLOCK] Unsupported read from %08lx\n", addr);
 #endif
             break;
     }
+    #if CLOCK_DEBUG
+          //  info_report("[CLOCK] read from %08lx = %lx\n", addr, r);
+    #endif
     return r;
 }
 
@@ -84,6 +94,9 @@ static void esp32s3_clock_write(void *opaque, hwaddr addr, uint64_t value,
 {
     ESP32S3ClockState *s = ESP32S3_CLOCK(opaque);
 
+    #if CLOCK_DEBUG
+            info_report("[CLOCK] write to %08lx = %lx\n", addr, value);
+    #endif
     switch(addr) {
         case A_SYSTEM_CORE_1_CONTROL_1_REG:
                 s->app_cpu_addr = (uint32_t)value;
@@ -98,11 +111,20 @@ static void esp32s3_clock_write(void *opaque, hwaddr addr, uint64_t value,
             s->sys_ext_dev_enc_dec_ctrl = value;
             break;
         case A_SYSTEM_CPU_PER_CONF:
+            value=FIELD_DP32(value,SYSTEM_CPU_PER_CONF, CPUPERIOD_SEL, 0);
             s->cpuperconf = value;
 //            printf("%lx\n",value);
             qemu_irq_pulse(s->clk_update);
             break;
-
+        case A_SYSTEM_RTC_FASTMEM_CONFIG:
+            s->mem_conf = value;
+            break;
+        case A_SYSTEM_SYSCLK_CONF:
+            value=FIELD_DP32(value,SYSTEM_SYSCLK_CONF, PRE_DIV_CNT,1);
+            value=FIELD_DP32(value,SYSTEM_SYSCLK_CONF,CLK_XTAL_FREQ, 40);
+            value=FIELD_DP32(value,SYSTEM_SYSCLK_CONF,SOC_CLK_SEL, ESP32S3_CLK_SEL_PLL);
+            s->sysclk = value;
+            break;
         default:
 #if CLOCK_WARNING
             warn_report("[CLOCK] Unsupported write to %08lx (%08lx)\n", addr, value);

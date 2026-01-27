@@ -136,7 +136,7 @@ static void servo_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->desc = "Servo Motor";
-    dc->legacy_reset = servo_reset;
+    device_class_set_legacy_reset(dc,servo_reset);
     dc->realize = servo_realize;
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     device_class_set_props(dc, servo_properties);

@@ -8,6 +8,7 @@
 #include "ulp_insn.h"
 #include "hw/misc/esp32_reg.h"
 #include "hw/misc/esp32_rtc_cntl.h"
+#include "hw/qdev-properties.h"
 
 #define DEBUG 0
 
@@ -26,6 +27,7 @@ static inline uint32_t ulp_fetch(ULPCPUState *env)
 static void ulp_exec_reg_wr(ULPCPUState *env, ULPInsn insn)
 {
     unsigned memaddr = (0x3ff48000 | (insn.cmd_wr_reg.addr * 4 & 0xfff));
+    if(env->v2) memaddr=memaddr-0x3ff40000+0x60000000;
     uint32_t val;
     address_space_read(&address_space_memory, memaddr,
                             MEMTXATTRS_UNSPECIFIED, &val, 4);
@@ -41,12 +43,14 @@ static void ulp_exec_reg_wr(ULPCPUState *env, ULPInsn insn)
 
     address_space_write(&address_space_memory, memaddr,
                             MEMTXATTRS_UNSPECIFIED, &val, 4);
-//    printf("REG_WR %x %d %x %d %d\n",memaddr,insn.cmd_wr_reg.data, val, insn.cmd_wr_reg.low,insn.cmd_wr_reg.high);
+    if(DEBUG)
+        printf("REG_WR %x %d %x %d %d\n",memaddr,insn.cmd_wr_reg.data, val, insn.cmd_wr_reg.low,insn.cmd_wr_reg.high);
 }
 
 static void ulp_exec_reg_rd(ULPCPUState *env, ULPInsn insn)
 {
     unsigned memaddr = (0x3ff48000 | (insn.cmd_rd_reg.addr * 4 & 0xfff));
+    if(env->v2) memaddr=memaddr-0x3ff40000+0x60000000;
     uint32_t val;
     address_space_read(&address_space_memory, memaddr,
                             MEMTXATTRS_UNSPECIFIED, &val, 4);
@@ -59,7 +63,8 @@ static void ulp_exec_reg_rd(ULPCPUState *env, ULPInsn insn)
 
     env->r[0] =
         (val >> insn.cmd_rd_reg.low) & ((1u << width) - 1);
-    //printf("REG_RD %x %x %x %d %d\n",memaddr,env->r[0], val, insn.cmd_rd_reg.low,insn.cmd_rd_reg.high);
+    if(DEBUG)
+        printf("REG_RD %x %x %x %d %d\n",memaddr,env->r[0], val, insn.cmd_rd_reg.low,insn.cmd_rd_reg.high);
 }
 
 /* ---------- JUMP instructions ---------- */
@@ -69,48 +74,86 @@ static inline int ulp_signed_step(uint8_t step)
     return (step & 0x80) ? -(step & 0x7f)-1 : (step & 0x7f)-1;
 }
 
+
+
 static void ulp_exec_jump(ULPCPUState *env, ULPInsn insn)
 {
     bool take =
         insn.jump_alu_ri.type == 0 ||
         (insn.jump_alu_ri.type == 1 && env->zero) ||
         (insn.jump_alu_ri.type == 2 && env->overflow);
-
+    if(DEBUG) printf("JUMP %d %d\n",take,insn.jump_alu_ri.reg);
     if (!take) {
         return;
     }
 
+    
     if (insn.jump_alu_ri.reg == 0) {
         env->pc = insn.jump_alu_ri.addr;
     } else {
         env->pc = env->r[insn.jump_alu_ri.dreg];
     }
 }
-
+// Conditions for JUMPR instructions (v2 only)
+#define JUMPR_EQ 2 
+#define JUMPR_GT 1
+#define JUMPR_LT 0
+#define JUMPR_LE 3
+#define JUMPR_GE 4
 static void ulp_exec_jumpr(ULPCPUState *env, ULPInsn insn)
 {
     int step = ulp_signed_step(insn.jump_alu_relr.step);
+    if(env->v2)
+        step = ulp_signed_step(insn.jump_alu_relr_v2.step);
 
     bool take =
         (insn.jump_alu_relr.judge == 0 && env->r[0] < insn.jump_alu_relr.threshold) ||
         (insn.jump_alu_relr.judge == 1 && env->r[0] >= insn.jump_alu_relr.threshold);
 
+    if(env->v2)
+        take=(insn.jump_alu_relr_v2.judge == 0 && env->r[0] < insn.jump_alu_relr_v2.threshold) ||
+        (insn.jump_alu_relr_v2.judge == 1 && env->r[0] > insn.jump_alu_relr_v2.threshold) ||
+        (insn.jump_alu_relr_v2.judge == 2 && env->r[0] == insn.jump_alu_relr_v2.threshold) ;
+
+    if(DEBUG) printf("JUMPR %d %d\n",take,step);
     if (take) {
         env->pc += step;
     }
 }
-
+// Conditions for JUMPS instructions
+#define JUMPS_EQ 4 
+#define JUMPS_GT 3
+#define JUMPS_LT 1
+#define JUMPS_LE 5
+#define JUMPS_GE 7
 static void ulp_exec_jumps(ULPCPUState *env, ULPInsn insn)
 {
-    int step = ulp_signed_step(insn.jump_alu_rels.step);
+    if(env->v2) {
+        int step = ulp_signed_step(insn.jump_alu_rels_v2.step);
+        int judge = insn.jump_alu_rels_v2.judge;
+        int threshold = insn.jump_alu_rels_v2.threshold;
+        int take=(judge == JUMPS_LT && env->stage_cnt < threshold) ||
+            (judge == JUMPS_EQ && env->stage_cnt == threshold) ||
+            (judge == JUMPS_GT && env->stage_cnt > threshold) ||
+            (judge == JUMPS_LE && env->stage_cnt <= threshold) ||
+            (judge == JUMPS_GE && env->stage_cnt >= threshold);
 
-    bool take =
-        (insn.jump_alu_rels.judge == 0 && env->stage_cnt <  insn.jump_alu_rels.threshold) ||
-        (insn.jump_alu_rels.judge == 1 && env->stage_cnt >= insn.jump_alu_rels.threshold) ||
-        (insn.jump_alu_rels.judge >= 2 && env->stage_cnt <= insn.jump_alu_rels.threshold);
+        if(DEBUG) printf("JUMPS_V2 %d %d %d %d\n",take,step, judge, threshold);
+        if (take) {
+            env->pc += step;
+        }
+    } else {
+        int step = ulp_signed_step(insn.jump_alu_rels.step);
 
-    if (take) {
-        env->pc += step;
+        bool take =
+            (insn.jump_alu_rels.judge == 0 && env->stage_cnt <  insn.jump_alu_rels.threshold) ||
+            (insn.jump_alu_rels.judge == 1 && env->stage_cnt >= insn.jump_alu_rels.threshold) ||
+            (insn.jump_alu_rels.judge >= 2 && env->stage_cnt <= insn.jump_alu_rels.threshold);
+
+        if(DEBUG) printf("JUMPS %d %d\n",take,step);
+        if (take) {
+            env->pc += step;
+        }
     }
 }
 
@@ -119,8 +162,13 @@ static void ulp_exec_alu(ULPCPUState *env, ULPInsn insn)
 {
     uint32_t lhs = env->r[insn.alu_reg.sreg];
     uint32_t rhs = 0;
+
+    int sub_op=insn.alu_reg.sub_opcode;
+    if(env->v2) sub_op=sub_op>>1;
+
+    if(DEBUG) printf("ALU %d %d\n",sub_op,env->v2);
     
-    switch (insn.alu_reg.sub_opcode) {
+    switch (sub_op) {
         case SUB_OPCODE_ALU_REG:
             rhs=env->r[insn.alu_reg.treg];
         break;
@@ -169,7 +217,7 @@ static void ulp_exec_alu(ULPCPUState *env, ULPInsn insn)
         return;
     }
 
-    if(insn.alu_reg.sub_opcode==SUB_OPCODE_ALU_CNT)
+    if(sub_op==SUB_OPCODE_ALU_CNT)
         env->stage_cnt = res;
     else
         env->r[insn.alu_reg_i.dreg] = res;
@@ -185,7 +233,7 @@ static void ulp_exec_ld(ULPCPUState *env, ULPInsn insn)
                             MEMTXATTRS_UNSPECIFIED, &val, 4);
     env->r[insn.rd_mem.dreg] = val & 0xffff;
     if(DEBUG)
-        printf("LD %x %x\n",memaddr,val);
+        printf("LD r[%d],r[%d]+%d : %x %x\n",insn.rd_mem.dreg, insn.rd_mem.sreg, insn.rd_mem.offset, memaddr,val);
 }
 
 static void ulp_exec_st(ULPCPUState *env, ULPInsn insn)
@@ -202,6 +250,7 @@ static void ulp_exec_st(ULPCPUState *env, ULPInsn insn)
 static void ulp_cpu_step(ULPCPU *cpu)
 {
     ULPCPUState *env = &cpu->env;
+    int sub_op;
 
     if (env->halted) {
         return;
@@ -214,7 +263,7 @@ static void ulp_cpu_step(ULPCPU *cpu)
     ULPInsn insn;
     insn.raw = ulp_fetch(env);
     if(DEBUG)
-        printf("ulp_cpu_step: %x %x %x %x\n",env->pc,insn.raw, env->r[0],env->stage_cnt);
+        printf("ulp_cpu_step: %x %x %x %x %x %x %x\n",env->pc,insn.raw, env->r[0],env->r[1],env->r[2],env->r[3],env->stage_cnt);
     env->pc++;
 
     switch (insn.generic.op) {
@@ -235,7 +284,12 @@ static void ulp_cpu_step(ULPCPU *cpu)
         ulp_exec_st(env, insn);
         break;
     case OPCODE_BRANCH:
-        switch (insn.jump_alu_ri.sub_opcode) {
+        sub_op=insn.jump_alu_ri.sub_opcode;
+        if(env->v2) {
+            sub_op=sub_op>>1;
+            if(sub_op!=2) sub_op=1-sub_op;
+        }
+        switch (sub_op) {
         case 0: ulp_exec_jump(env, insn);  break;
         case 1: ulp_exec_jumpr(env, insn); break;
         case 2: ulp_exec_jumps(env, insn); break;
@@ -244,6 +298,8 @@ static void ulp_cpu_step(ULPCPU *cpu)
     case OPCODE_HALT:
         env->halted = true;
         env->pc=0;
+        if(DEBUG)
+                printf("HALT\n");
         break;
     case OPCODE_EXIT:
         switch(insn.cmd_sleep.sub_opcode) {
@@ -258,7 +314,7 @@ static void ulp_cpu_step(ULPCPU *cpu)
         }
         break;
     case OPCODE_WAIT:
-        env->wait_instructions=insn.cmd_wait.wait/10;
+        env->wait_instructions=insn.cmd_wait.wait/100;
         if(DEBUG)
             printf("WAIT %d\n",env->wait_instructions);
         break;
@@ -277,11 +333,26 @@ static void run_cpu(ULPCPU *cpu) {
 }
 
 static void start_timer(ULPCPUState *env) {
-    unsigned memaddr = 0x3FF48818+env->timer_number*4;
+    
+//    if(env->v2)
+//        memaddr = 0x60008000 + 0x134; 
     uint32_t val;
-    address_space_read(&address_space_memory, memaddr,
+    if(!env->v2) {
+        unsigned memaddr = 0x3FF48818+env->timer_number*4;
+        address_space_read(&address_space_memory, memaddr,
                             MEMTXATTRS_UNSPECIFIED, &val, 4);
-    timer_mod_anticipate(&env->ulp_timer,qemu_clock_get_ns(QEMU_CLOCK_REALTIME)+(val*6667));
+    } else {
+        val=env->timer_on>>8;
+    }
+
+    // esp32 uses 150KHz RTC_SLOW_CLK for cycle counting
+    // esp32s3 uses 136KHz RTC_SLOW_CLK
+    int64_t v64;
+    if(env->v2) v64=((int64_t)val*1e6)/136;
+    else v64=((int64_t)val*1e6)/150;
+    if(DEBUG)
+        printf("Timer restart in %dns\n",(int)v64);                    
+    timer_mod(&env->ulp_timer,qemu_clock_get_ns(QEMU_CLOCK_REALTIME)+v64);
 }
 
 static void ulp_timer_cb(void *v) {
@@ -294,26 +365,27 @@ static void ulp_timer_cb(void *v) {
     if(env->timer_on)
         start_timer(env);
 }
-static void start_ulp(void *opaque, int n, int val) {
+static void set_ulp_pc(void *opaque, int n, int val) {
     ULPCPU *cpu=ULP_CPU(opaque);
     ULPCPUState *s = &cpu->env;
     if(DEBUG)
-        printf("start_ulp %x\n",val);
-    s->start_pc=val>>11;
+        printf("set_ulp_pc %x\n",val);
+    s->start_pc=val;
  
-    if(val & 0x30)
-        run_cpu(cpu);
+ //   if(val & 0x30)
+ //       run_cpu(cpu);
 }
 static void ulp_timer_start(void *opaque, int n, int val) {
     ULPCPU *cpu=ULP_CPU(opaque);
     ULPCPUState *s = &cpu->env;
     if(DEBUG)
         printf("timer_start %d\n",val);
+    if(val==s->timer_on) return;
     if(val) {
         s->pc=s->start_pc;
-    //    run_cpu(cpu);
+//        run_cpu(cpu);
         start_timer(s);
-        s->timer_on=true;
+        s->timer_on=val;
     } else {
         timer_del(&s->ulp_timer);
         s->timer_on=false;
@@ -326,9 +398,10 @@ static void ulp_cpu_reset(DeviceState *dev)
     ULPCPUState *env = &cpu->env;
     if(DEBUG)
         printf("ulp reset\n");
-    memset(env, 0, sizeof(*env));
+//    memset(env, 0, sizeof(*env));
     env->halted = false;
     env->timer_number=0;
+    ulp_timer_start(cpu,0,0);
 }
 
 static void ulp_cpu_realize(DeviceState *dev, Error **errp)
@@ -336,13 +409,19 @@ static void ulp_cpu_realize(DeviceState *dev, Error **errp)
     CPUState *cs = CPU(dev);
    // SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
     ULPCPUState *s = &(ULP_CPU(dev)->env);
+    
     qdev_init_gpio_in_named(dev, ulp_timer_start, ULP_TIMER_GPIO, 1);
     qdev_init_gpio_out_named(dev, &s->rtc_wakeup, ULP_WAKEUP_GPIO, 1);
-    qdev_init_gpio_in_named(dev, start_ulp, ULP_START_GPIO, 1);
+    qdev_init_gpio_in_named(dev, set_ulp_pc, ULP_SET_PC_GPIO, 1);
     timer_init_ns(&s->ulp_timer, QEMU_CLOCK_REALTIME, ulp_timer_cb,
                       (void *)cs);
-    cpu_reset(cs);
+//    cpu_reset(cs);
 }
+
+static Property ulp_properties[] = {
+    DEFINE_PROP_BOOL("ulp_type",ULPCPUState,v2,false),
+    DEFINE_PROP_END_OF_LIST(),
+};
 
 static void ulp_cpu_class_init(ObjectClass *oc, void *data)
 {
@@ -350,8 +429,9 @@ static void ulp_cpu_class_init(ObjectClass *oc, void *data)
     CPUClass *cc = CPU_CLASS(oc);
 
     dc->realize = ulp_cpu_realize;
-    dc->legacy_reset   = ulp_cpu_reset;
 
+    device_class_set_legacy_reset(dc,ulp_cpu_reset);
+    device_class_set_props(dc, ulp_properties);
     cc->has_work = NULL;
 }
 

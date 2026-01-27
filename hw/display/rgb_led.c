@@ -176,7 +176,7 @@ static Property rgb_led_properties[] = {
 static void rgbled_class_init(ObjectClass *klass, void *data) {
     DeviceClass *dc = DEVICE_CLASS(klass);
     SSIPeripheralClass *k = SSI_PERIPHERAL_CLASS(klass);
-    dc->legacy_reset = rgbled_reset;
+    device_class_set_legacy_reset(dc,rgbled_reset);
     k->realize = rgbled_realize;
     k->transfer = rgbled_transfer;
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
