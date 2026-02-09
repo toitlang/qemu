@@ -126,9 +126,12 @@ static void draw_skin(ConsoleState *c) {
     for (int i = 0; i < board_skin->height; i++)
         for (int j = 0; j < board_skin->width; j++) {
             pixel p = board_skin->pixel_data[i * board_skin->width + j];
+            p.r=(p.r*p.a)/255;
+            p.g=(p.g*p.a)/255;
+            p.b=(p.b*p.a)/255;
             uint32_t rgba= (p.a<<24) | (p.r<<16) | (p.g<<8) | p.b;
-            if (p.a < 200)
-                rgba=0xff000000;
+        //    if (p.a < 200)
+        //        rgba=0xff000000;
             uint16_t rgb565=argbto565(rgba);
             if (c->width < c->height)  // portrait
                 dest[i * board_skin->width + j] = rgb565;
