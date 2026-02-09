@@ -317,6 +317,49 @@ static const uint8_t GPIO_PIN_MUX_REG_OFFSET[] = {
     0x1c,0x20,0x14,0x18,0x04,0x08,0x0c,0x10,
 };
 
+static uint32_t get_pull_up(Esp32GpioState *s, int gpio_no) {
+    int rtc_gpio=io_mux_pins[gpio_no].rtc_gpio;
+
+    if(rtc_gpio>5) {
+        switch(rtc_gpio) {
+            case 6:
+                return FIELD_EX32(s->rtc_pad_cfg[2],RTCIO_PAD_DAC1,RUE);
+            case 7:
+                return FIELD_EX32(s->rtc_pad_cfg[3],RTCIO_PAD_DAC2,RUE);
+            case 8:
+                return FIELD_EX32(s->rtc_pad_cfg[4],RTCIO_XTAL_32K_PAD,X32N_RUE);
+            case 9:
+                return FIELD_EX32(s->rtc_pad_cfg[4],RTCIO_XTAL_32K_PAD,X32P_RUE);
+            default:
+                return FIELD_EX32(s->rtc_pad_cfg[6+rtc_gpio-10],RTCIO_TOUCH_PAD0,RUE);
+        }
+    }
+    int io_mux=GPIO_PIN_MUX_REG_OFFSET[gpio_no]/4;   
+    return FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_WPU);
+}
+
+static uint32_t get_pull_down(Esp32GpioState *s, int gpio_no) {
+    int rtc_gpio=io_mux_pins[gpio_no].rtc_gpio;
+
+    if(rtc_gpio>5) {
+        switch(rtc_gpio) {
+            case 6:
+                return FIELD_EX32(s->rtc_pad_cfg[2],RTCIO_PAD_DAC1,RDE);
+            case 7:
+                return FIELD_EX32(s->rtc_pad_cfg[3],RTCIO_PAD_DAC2,RDE);
+            case 8:
+                return FIELD_EX32(s->rtc_pad_cfg[4],RTCIO_XTAL_32K_PAD,X32N_RDE);
+            case 9:
+                return FIELD_EX32(s->rtc_pad_cfg[4],RTCIO_XTAL_32K_PAD,X32P_RDE);
+            default:
+                return FIELD_EX32(s->rtc_pad_cfg[6+rtc_gpio-10],RTCIO_TOUCH_PAD0,RDE);
+        }
+    }
+    int io_mux=GPIO_PIN_MUX_REG_OFFSET[gpio_no]/4;   
+    return FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_WPD);
+}
+
+
 #define N_RTC_GPIOS 18
 // mapping from rtc gpios to iomux gpios
 int gpio_map[N_RTC_GPIOS]={36,37,38,39,34,35,25,26,33,32,4,0,2,15,13,12,14,27};
@@ -555,8 +598,8 @@ static void text_console_update(void *obj) {
         uint32_t oen_sel=FIELD_EX32(s->gpio_out_sel[i],GPIO_FUNC_OUT,OEN_SEL);
         uint32_t mux_ie=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_IE);
         uint32_t mux_func=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,MCU_SEL);
-        uint32_t pullup=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_WPU);
-        uint32_t pulldown=FIELD_EX32(s->iomux_regs[io_mux],IO_MUX,FUN_WPD);
+        uint32_t pullup=get_pull_up(s,i);
+        uint32_t pulldown=get_pull_down(s,i);
         uint32_t int_type=FIELD_EX32(s->gpio_pin[i],GPIO_PIN,INT_TYPE);
         uint32_t int_enable=FIELD_EX32(s->gpio_pin[i],GPIO_PIN,INT_ENABLE);
 

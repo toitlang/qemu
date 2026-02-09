@@ -76,7 +76,21 @@ REG32(RTC_GPIO_PIN,0x28)
 REG32(RTC_PAD_CFG,0x7c)
 REG32(RTC_DIG_PAD_HOLD,0x74)
 REG32(RTC_EXT_WAKEUP0,0xbc)
-    FIELD(RTC_EXT_WAKEUP0,SEL,27,5) 
+    FIELD(RTC_EXT_WAKEUP0,SEL,27,5)
+REG32(RTCIO_PAD_DAC1,0x84)
+    FIELD(RTCIO_PAD_DAC1,RUE,27,1)
+    FIELD(RTCIO_PAD_DAC1,RDE,28,1)
+REG32(RTCIO_PAD_DAC2,0x88)
+    FIELD(RTCIO_PAD_DAC2,RUE,27,1)
+    FIELD(RTCIO_PAD_DAC2,RDE,28,1)
+REG32(RTCIO_XTAL_32K_PAD,0x8c)
+    FIELD(RTCIO_XTAL_32K_PAD,X32N_RUE,27,1)
+    FIELD(RTCIO_XTAL_32K_PAD,X32N_RDE,28,1)
+    FIELD(RTCIO_XTAL_32K_PAD,X32P_RUE,22,1)
+    FIELD(RTCIO_XTAL_32K_PAD,X32P_RDE,23,1)
+REG32(RTCIO_TOUCH_PAD0,0x94)
+    FIELD(RTCIO_TOUCH_PAD0,RUE,27,1)
+    FIELD(RTCIO_TOUCH_PAD0,RDE,28,1)
 
 #define ESP32_STRAP_MODE_FLASH_BOOT 0x12
 #define ESP32_STRAP_MODE_UART_BOOT  0x0f
@@ -106,7 +120,6 @@ typedef struct Esp32GpioState {
     uint32_t gpio_out_sel[40];
     qemu_irq gpios[40];
     uint32_t iomux_regs[41];
-   // uint32_t rtcio_regs[64];
     uint32_t rtc_gpio_out;
     uint32_t rtc_gpio_in;
     uint32_t rtc_gpio_status;
@@ -115,6 +128,7 @@ typedef struct Esp32GpioState {
     uint32_t rtc_pad_cfg[16];
     uint32_t rtc_dig_pad_hold;
     uint32_t rtc_ext_wakeup0;
+ 
     QemuConsole *con;
     uint32_t *data;
     uint32_t redraw;
