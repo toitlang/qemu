@@ -399,7 +399,7 @@ static void esp32_machine_init_i2c(Esp32s3SocState *s)
     I2CBus* i2c_bus = I2C_BUS(qdev_get_child_bus(i2c_master, "i2c"));
     I2CSlave* tmp105 = i2c_slave_create_simple(i2c_bus, "tmp105", 0x48);
     object_property_set_int(OBJECT(tmp105), "temperature", 25 * 1000, &error_fatal);
-    i2c_slave_create_simple(i2c_bus, "mpu6050", 0x68);
+    //i2c_slave_create_simple(i2c_bus, "mpu6050", 0x68);
 }
 
 static void esp32s3_init_openeth(Esp32s3SocState *ms)
@@ -1182,13 +1182,13 @@ static void esp32s3_machine_init(MachineState *machine)
     sysbus_connect_irq(SYS_BUS_DEVICE(&ss->rmt), 0,
                            qdev_get_gpio_in(intmatrix_dev, ETS_RMT_INTR_SOURCE));
 
-    ssi_create_peripheral(ss->rmt.rmt, "rgbled");
+    //ssi_create_peripheral(ss->rmt.rmt, "rgbled");
   }
     esp32_machine_init_i2c(ss);
 
 
-    ServoState *servo=servo_create_simple(OBJECT(ss),"servo");
-    qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_GPIOS, 21, qdev_get_gpio_in(DEVICE(servo), 0));
+    //ServoState *servo=servo_create_simple(OBJECT(ss),"servo");
+    //qdev_connect_gpio_out_named(DEVICE(&ss->gpio), ESP32_GPIOS, 21, qdev_get_gpio_in(DEVICE(servo), 0));
 
 //    esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.rmt", DR_REG_RMT_BASE, 0x1000);
  //   esp32s3_soc_add_unimp_device(sys_mem, "esp32s3.iomux", DR_REG_IO_MUX_BASE, 0x2000);
