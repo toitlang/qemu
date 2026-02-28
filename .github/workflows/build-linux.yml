@@ -3,11 +3,10 @@ name: 'Simple build for Linux'
 on: [push, pull_request]
 
 jobs:
-
-  Build:
-
+  build:
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install prerequisites
         run: |
