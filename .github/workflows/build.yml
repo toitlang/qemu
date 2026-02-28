@@ -1,4 +1,4 @@
-name: 'build'
+name: 'Build for Linux, Windows, MacOS (intel) and MacOS (arm)'
 
 on: [push, pull_request]
 
