@@ -15,8 +15,24 @@
 static void esp32s3_efuse_realize(DeviceState *dev, Error **errp)
 {
     ESP32S3EfuseClass* esp32s3_class = ESP32S3_EFUSE_GET_CLASS(dev);
+    ESPEfuseState *s = ESP_EFUSE(dev);
 
     esp32s3_class->parent_realize(dev, errp);
+
+    if (s->blk == NULL) {
+        assert(s->mirror != NULL);
+
+        /* Default octal flash and PSRAM pad configuration. */
+        s->efuses.blocks.rd_repeat_data3 = 0x80000100;
+        s->efuses.blocks.rd_mac_spi_sys_0 = 0x00c40a24;
+        s->efuses.blocks.rd_mac_spi_sys_1 = 0x07de1001;
+        s->efuses.blocks.rd_mac_spi_sys_2 = 0x86571b76;
+        s->efuses.blocks.rd_mac_spi_sys_3 = 0x020648e2;
+        s->efuses.blocks.rd_mac_spi_sys_4 = 0x00008260;
+        s->efuses.blocks.rd_sys_part1_data4 = 0x00000001;
+
+        memcpy(s->mirror, &s->efuses.blocks, sizeof(ESPEfuseBlocks));
+    }
 }
 
 
