@@ -2,6 +2,9 @@
 QEMU README
 ===========
 
+This fork's Toit-specific provenance, supported ESP32 targets, build notes,
+and test instructions are documented in `README.toit.md <README.toit.md>`_.
+
 QEMU is a generic and open source machine & userspace emulator and
 virtualizer.
 
