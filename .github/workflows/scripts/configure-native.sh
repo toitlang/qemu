@@ -2,11 +2,8 @@
 
 set -euo pipefail
 
-TARGET=${TARGET:-xtensa-softmmu}
+TARGET=${TARGET:-xtensa-softmmu,riscv32-softmmu}
 VERSION=${VERSION:-dev}
-
-echo DBG
-./configure --help
 
 # Building with -Werror only on Linux as that breaks some features detection in meson on macOS.
 # Defining --bindir, --datadir, etc - to have the same directory tree on Linux and Windows
@@ -15,22 +12,22 @@ echo DBG
 #   MinGW build ref: https://github.com/msys2/MINGW-packages/blob/master/mingw-w64-qemu/PKGBUILD
 
 ./configure \
-    --bindir=xtensa-softmmu \
-    --datadir=share/qemu \
-    --enable-gcrypt \
-    --disable-sdl \
-    --enable-slirp \
+    --bindir=bin \
+    --datadir=share/qemu-firmware \
+    --disable-docs \
+    --disable-gtk \
     --disable-opengl \
-    --enable-vte \
-    --enable-gtk \
-    --enable-strip \
+    --disable-sdl \
+    --enable-gcrypt \
+    --enable-fdt=internal \
     --enable-pixman \
+    --enable-slirp \
+    --enable-strip \
     --enable-stack-protector \
     --extra-cflags=-Werror \
     --prefix=${PWD}/install/qemu \
     --target-list=${TARGET} \
     --with-pkgversion="${VERSION}" \
     --with-suffix="" \
-    --enable-fdt=disabled \
     --without-default-features \
 || { cat meson-logs/meson-log.txt && false; }

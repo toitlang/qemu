@@ -3,9 +3,11 @@
 set -euo pipefail
 
 brew install \
+  dylibbundler \
+  libgcrypt \
   libslirp \
+  ninja \
   pixman \
-  sdl2 \
 && :
 
 # workaround if deprecated module 'distutils.version' is missing

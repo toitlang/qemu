@@ -14,9 +14,8 @@ apt-get install -y -q --no-install-recommends \
     libsdl2-dev \
     libslirp-dev \
     ninja-build \
-    libgtk-3-dev \
+    patchelf \
     python3-pip \
-    libvte-2.91-dev \
     wget \
     zlib1g-dev \
 && :

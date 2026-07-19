@@ -2,29 +2,28 @@
 
 set -euo pipefail
 
-TARGET=${TARGET:-xtensa-softmmu}
+TARGET=${TARGET:-xtensa-softmmu,riscv32-softmmu}
 VERSION=${VERSION:-dev}
 
-echo DBG
-./configure --help
-
 ./configure \
-    --bindir=xtensa-softmmu \
-    --datadir=share/qemu \
+    --bindir=bin \
+    --datadir=share/qemu-firmware \
+    --disable-docs \
+    --disable-gtk \
+    --disable-opengl \
+    --disable-sdl \
+    --disable-werror \
+    --enable-fdt=internal \
     --enable-gcrypt \
     --enable-iconv \
-    --enable-gtk \
     --enable-pixman \
-    --disable-sdl \
     --enable-strip \
     --enable-slirp \
     --enable-stack-protector \
-    --extra-cflags=-Werror \
     --prefix=${PWD}/install/qemu \
     --target-list=${TARGET} \
     --with-pkgversion="${VERSION}" \
     --with-suffix="" \
-    --enable-fdt=disabled \
     --without-default-features \
 || { cat meson-logs/meson-log.txt && false; }
 

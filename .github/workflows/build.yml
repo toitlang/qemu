@@ -1,101 +1,53 @@
-name: 'Build for Linux, Windows, MacOS (intel) and MacOS (arm)'
+name: Build and release QEMU for Toit
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-
-  Vars:
-    runs-on: ubuntu-latest
-    outputs:
-      VERSION: ${{ steps.Vars.outputs.VERSION }}
-      PROJECT_NAME: ${{ steps.Vars.outputs.PROJECT_NAME }}
-      REPOSITORY_URL: ${{ steps.Vars.outputs.REPOSITORY_URL }}
-    steps:
-      - id: Vars
-        run: |
-          echo "ref_type: ${{ github.ref_type }}"
-          echo "ref: ${{ github.ref }}"
-          echo "sha: ${{ github.sha }}"
-          echo ""
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION=${{ github.ref }}
-            VERSION=${VERSION#"refs/tags/"}
-            VERSION=${VERSION//"-"/"_"}   # replace dashes with underscores in the version
-          else
-            VERSION=${{ github.sha }}
-            VERSION=g${VERSION:0:8}
-          fi
-          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-          echo $VERSION
-
-          OWNER=${{ github.repository_owner }}
-          FULLNAME=${{ github.repository }}
-          PROJECT_NAME=${FULLNAME#"$OWNER/"}
-          echo "PROJECT_NAME=$PROJECT_NAME" >> "$GITHUB_OUTPUT"
-          echo $PROJECT_NAME
-
-          REPOSITORY_URL=${{ github.server_url }}/${{ github.repository }}
-          echo "REPOSITORY_URL=$REPOSITORY_URL" >> "$GITHUB_OUTPUT"
-          echo $REPOSITORY_URL
-
-  Build:
-    needs: [ Vars ]
-    env:
-      # A simple way to spread several environments for Windows. But to be more precise, we need to somehow add different envs to matrix.include
-
-      MSYSTEM: MINGW64  # Ref: https://www.msys2.org/docs/environments/
-      CHERE_INVOKING: 'yes'
-      MSYS: 'winsymlinks:native'
+  build:
     strategy:
       fail-fast: false
       matrix:
-        # Naming MinGW platforms: https://sourceforge.net/p/mingw-w64/wiki2/TypeTriplets/
-        platform: [x86_64-linux-gnu, x86_64-w64-mingw32, x86_64-apple-darwin, aarch64-apple-darwin]
-        target: [xtensa-softmmu]
-
         include:
-          - platform: x86_64-linux-gnu
-            runs_on: ubuntu-24.04
-            # Used minimal build deps
-            container: ubuntu:24.04
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-native.sh"
-            run_configure: "./.github/workflows/scripts/configure-native.sh"
-
-          - platform: x86_64-w64-mingw32
-            runs_on: windows-2022
+          - platform: linux-x86_64
+            os: linux
+            runner: ubuntu-22.04
+            shell: bash
+          - platform: linux-aarch64
+            os: linux
+            runner: ubuntu-22.04-arm
+            shell: bash
+          - platform: windows-x86_64
+            os: windows
+            runner: windows-2022
             shell: msys2 {0}
-            run_configure: "./.github/workflows/scripts/configure-win.sh"
-
-          - platform: x86_64-apple-darwin
-            runs_on: macos-15-intel
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
-            run_configure: "./.github/workflows/scripts/configure-macos.sh"
-
-          - platform: aarch64-apple-darwin
-            runs_on: macos-14
-            shell: bash -e {0}
-            run_prerequisites: "./.github/workflows/scripts/prerequisites-macos.sh"
-            run_configure: "./.github/workflows/scripts/configure-macos.sh"
-
-    runs-on: ${{ matrix.runs_on }}
-    container:
-        image: ${{ matrix.container }}
+          - platform: macos-x86_64
+            os: macos
+            runner: macos-15-intel
+            shell: bash
+          - platform: macos-aarch64
+            os: macos
+            runner: macos-15
+            shell: bash
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: ${{ matrix.shell }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install prerequisites (${{ matrix.target }} @ ${{ matrix.platform }})
-        if : ${{ matrix.platform != 'x86_64-w64-mingw32' }}
-        run: |
-          ${{ matrix.run_prerequisites }}
-
-      - name: Install MSYS2 prerequisites (${{ matrix.target }} @ ${{ matrix.platform }})
-        if : ${{ matrix.platform == 'x86_64-w64-mingw32' }}
+      - name: Set up MSYS2
+        if: matrix.os == 'windows'
         uses: msys2/setup-msys2@v2
         with:
           cache: true
@@ -109,109 +61,154 @@ jobs:
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libslirp
             mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-gtk3
             mingw-w64-x86_64-pixman
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-python
-            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-python-pip
+            mingw-w64-x86_64-zlib
+            zip
 
-      - name: Configure (${{ matrix.target }} @ ${{ matrix.platform }})
+      - name: Install vendored Windows Python build dependencies
+        if: matrix.os == 'windows'
+        run: >-
+          python3 -m pip install --break-system-packages --no-index
+          python/wheels/*.whl
+
+      - name: Install Linux prerequisites
+        if: matrix.os == 'linux'
+        run: sudo .github/workflows/scripts/prerequisites-native.sh
+
+      - name: Install macOS prerequisites
+        if: matrix.os == 'macos'
+        run: .github/workflows/scripts/prerequisites-macos.sh
+
+      - name: Select release version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version=${GITHUB_REF_NAME}
+          else
+            release_version=g${GITHUB_SHA:0:8}
+          fi
+          echo "RELEASE_VERSION=${release_version}" >> "${GITHUB_ENV}"
+
+      - name: Configure Linux
+        if: matrix.os == 'linux'
         env:
-          VERSION: ${{ needs.Vars.outputs.VERSION }}
-          TARGET: ${{ matrix.target }}
-        run: |
-          ${{ matrix.run_configure }}
+          TARGET: xtensa-softmmu,riscv32-softmmu
+        run: VERSION="${RELEASE_VERSION}" .github/workflows/scripts/configure-native.sh
 
-      - name: Build (${{ matrix.target }} @ ${{ matrix.platform }})
-        run: |
-          export MACOSX_DEPLOYMENT_TARGET=13
-          ninja -C build install
-
-      - name: Package Darwin Libs (${{ matrix.target }} @ ${{ matrix.platform }})
-        if : ${{ matrix.platform == 'aarch64-apple-darwin' || matrix.platform == 'x86_64-apple-darwin'}}
-        run: |
-          cd $PWD/install/qemu/xtensa-softmmu
-          ls -l
-          otool -L qemu-system-xtensa
-          otool -L qemu-system-xtensa | grep "/opt/homebrew\|/usr/local/opt" | cut -f 1 -d " " | xargs -Ixxx  cp -n xxx .
-          ls -l
-          otool -L *.dylib | grep "/opt/homebrew\|/usr/local/opt"  | cut -f 1 -d " " | xargs -Ixxx  cp -n xxx . || true
-          otool -L *.dylib | grep "/opt/homebrew\|/usr/local/opt"  | cut -f 1 -d " " | xargs -Ixxx  cp -n xxx . || true
-
-      - name: Package Windows DLLs (${{ matrix.target }} @ ${{ matrix.platform }})
-        if : ${{ matrix.platform == 'x86_64-w64-mingw32'}}
-        run: |
-          cd $PWD/install/qemu/xtensa-softmmu
-          ls -l
-          ldd qemu-system-xtensa
-          ldd qemu-system-xtensa | grep "/mingw64/bin/" | cut -f 3 -d " " | xargs -Ixxx  cp -n xxx .
-          ls -l
-
-      - name: Package (${{ matrix.target }} @ ${{ matrix.platform }})
+      - name: Configure macOS
+        if: matrix.os == 'macos'
         env:
-          VERSION: ${{ needs.Vars.outputs.VERSION }}
-          PROJECT_NAME: ${{ needs.Vars.outputs.PROJECT_NAME }}
-          PLATFORM: ${{ matrix.platform }}
-          TARGET: ${{ matrix.target }}
+          TARGET: xtensa-softmmu,riscv32-softmmu
+        run: VERSION="${RELEASE_VERSION}" .github/workflows/scripts/configure-macos.sh
+
+      - name: Configure Windows
+        if: matrix.os == 'windows'
+        env:
+          TARGET: xtensa-softmmu,riscv32-softmmu
+        run: VERSION="${RELEASE_VERSION}" .github/workflows/scripts/configure-win.sh
+
+      - name: Build and install
+        run: ninja -C build install
+
+      - name: Check installed emulators
+        if: matrix.os != 'windows'
         run: |
-          find $PWD/install/qemu/share/qemu/ -maxdepth 1 -mindepth 1 -not -name 'esp32*.bin' -exec rm -rfv {} \;
-          export DIST_DIR=${PWD}/dist
-          mkdir -p ${DIST_DIR}
-          cd $PWD/install
-          mv qemu/share/qemu qemu/share/qemu-firmware
-          ARCHIVE_NAME=${PROJECT_NAME}-${TARGET}-${VERSION}-${PLATFORM}.tar.gz
-          tar -czvf ${DIST_DIR}/${ARCHIVE_NAME} qemu
+          install/qemu/bin/qemu-system-xtensa --version
+          install/qemu/bin/qemu-system-riscv32 --version
+          install/qemu/bin/qemu-system-xtensa -M help | grep -q esp32s3
+          install/qemu/bin/qemu-system-riscv32 -M help | grep -q esp32c3
 
+      - name: Check installed emulators on Windows
+        if: matrix.os == 'windows'
+        run: |
+          install/qemu/bin/qemu-system-xtensa.exe --version
+          install/qemu/bin/qemu-system-riscv32.exe --version
+          install/qemu/bin/qemu-system-xtensa.exe -M help | grep -q esp32s3
+          install/qemu/bin/qemu-system-riscv32.exe -M help | grep -q esp32c3
 
-      - name: Dist artifacts (${{ matrix.target }} @ ${{ matrix.platform }})
+      - name: Package Linux
+        if: matrix.os == 'linux'
+        run: >-
+          .github/workflows/scripts/package-linux.sh
+          "${RELEASE_VERSION}" "${{ matrix.platform }}"
+
+      - name: Package macOS
+        if: matrix.os == 'macos'
+        run: >-
+          .github/workflows/scripts/package-macos.sh
+          "${RELEASE_VERSION}" "${{ matrix.platform }}"
+
+      - name: Package Windows
+        if: matrix.os == 'windows'
+        run: >-
+          .github/workflows/scripts/package-windows.sh
+          "${RELEASE_VERSION}" "${{ matrix.platform }}"
+
+      - name: Set up Toit
+        if: matrix.platform == 'linux-x86_64'
+        uses: toitlang/action-setup@v1
+
+      - name: Run Toit smoke tests
+        if: matrix.platform == 'linux-x86_64'
+        run: >-
+          .github/workflows/scripts/test-toit.sh
+          "dist/qemu-toit-${RELEASE_VERSION}-${{ matrix.platform }}/bin"
+
+      - name: Upload Unix binary archive
+        if: matrix.os != 'windows'
         uses: actions/upload-artifact@v4
         with:
-          # TODO split artifacts for tests
-          name: dist-qemu-${{ matrix.target }}-${{ matrix.platform }}
-          path: |
-            dist/*.tar.gz
+          name: qemu-toit-${{ matrix.platform }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
 
-  Upload:
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: [ Vars, Build ]
-    runs-on: ubuntu-latest
-    steps :
-      - name: Create a source archive
-        id: create-source
-        env:
-          VERSION: ${{ needs.Vars.outputs.VERSION }}
-          PROJECT_NAME: ${{ needs.Vars.outputs.PROJECT_NAME }}
-          REPOSITORY_URL: ${{ needs.Vars.outputs.REPOSITORY_URL }}
-        run: |
-          export RELEASE_CHECKSUM_FILE="${PROJECT_NAME}-${VERSION}-checksum.sha256"
-          echo "RELEASE_CHECKSUM_FILE=$RELEASE_CHECKSUM_FILE" >> "$GITHUB_OUTPUT"
-          RELEASE_SRC_NAME="${PROJECT_NAME}-${VERSION}-src"
-          export RELEASE_SRC_FILE="${PROJECT_NAME}-${VERSION}-src.tar.xz"
-          echo "RELEASE_SRC_FILE=$RELEASE_SRC_FILE" >> "$GITHUB_OUTPUT"
-
-          rm -rf -- "${RELEASE_SRC_NAME}" "${RELEASE_SRC_FILE}"
-          git clone --quiet --depth 1 --recurse-submodules --shallow-submodules "${REPOSITORY_URL}" "${RELEASE_SRC_NAME}"
-          find "${RELEASE_SRC_NAME}" -name ".git" -type d -exec rm -rf -- "{}" +
-          find "${RELEASE_SRC_NAME}" -name .git\* -exec rm -rf -- {} +
-          tar -cJvf "${RELEASE_SRC_FILE}" "${RELEASE_SRC_NAME}" > src-filelist.txt 2>&1
-          rm -rf -- "${RELEASE_SRC_NAME}"
-          ls -l
-
-      - name: Source filelist (dbg)
+      - name: Upload Windows binary archive
+        if: matrix.os == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: src-filelist
-          path: |
-            src-filelist.txt
+          name: qemu-toit-${{ matrix.platform }}
+          path: dist/*.zip
+          if-no-files-found: error
 
+  checksums:
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')) &&
+      needs.build.result == 'success'
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: dist-qemu-*
-          path: artifacts
+          pattern: qemu-toit-*
+          path: dist
           merge-multiple: true
 
-      - name: Release
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > SHA256SUMS
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-toit-release
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
-          files: artifacts/*
+          draft: false
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
