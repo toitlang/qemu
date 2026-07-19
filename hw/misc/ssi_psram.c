@@ -136,7 +136,7 @@ static void psram_write_data(SsiPsramState *s, off_t offset, uint8_t byte)
     uint8_t* ptr = (uint8_t*) memory_region_get_ram_ptr(&s->data_mr);
     const uint32_t size_bytes = s->size_mbytes * 1024 * 1024;
     off_t destination = s->addr + offset;
-    if (destination < size_bytes) {
+    if (destination >= 0 && destination < size_bytes) {
         ptr[destination] = byte;
     }
 }
@@ -151,7 +151,7 @@ static uint8_t psram_read_data(SsiPsramState *s, off_t offset)
     uint8_t* ptr = (uint8_t*) memory_region_get_ram_ptr(&s->data_mr);
     const uint32_t size_bytes = s->size_mbytes * 1024 * 1024;
     off_t destination = s->addr + offset;
-    if (destination < size_bytes) {
+    if (destination >= 0 && destination < size_bytes) {
         return ptr[destination];
     }
     return 0;
@@ -244,9 +244,9 @@ static uint32_t psram_quad_read(SsiPsramState *s)
         const int index = s->byte_count;
         if (index < ARRAY_SIZE(read_id_response)) {
             result = read_id_response[index];
-        } else if (s->state == ST_PROCESSING && psram_is_read_command(s)) {
-            result = psram_read_data(s, s->byte_count++);
         }
+    } else if (s->state == ST_PROCESSING && psram_is_read_command(s)) {
+        result = psram_read_data(s, s->byte_count++);
     }
     return result;
 }
